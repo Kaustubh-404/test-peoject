@@ -22,8 +22,17 @@ interface FilterState {
 
 // Content Window Component
 const ContentWindow: React.FC = () => {
-  // Get guards data from context (now uses real API)
-  const { guards, loading, error, total, refreshGuards, forceRefreshGuards } = useGuards();
+  // Get guards data from context
+  const { 
+    guards, 
+    loading, 
+    error, 
+    total, 
+    initialized, // Get initialization status
+    refreshGuards, 
+    forceRefreshGuards, 
+    initializeGuards // Get initialization method
+  } = useGuards();
 
   const navigate = useNavigate();
 
@@ -32,7 +41,13 @@ const ContentWindow: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 🔥 Add effect to log when guards array changes (for debugging)
+  // 🔥 Initialize guards when component mounts (ONLY when on guards page)
+  useEffect(() => {
+    console.log("📍 Guards ContentWindow mounted - initializing guards...");
+    initializeGuards().catch(console.error);
+  }, [initializeGuards]);
+
+  // Add effect to log when guards array changes (for debugging)
   useEffect(() => {
     console.log("📊 Guards list updated:", guards.length, "guards");
   }, [guards]);
@@ -84,8 +99,8 @@ const ContentWindow: React.FC = () => {
     }
   };
 
-  // Show loading state
-  if (loading && guards.length === 0) {
+  // Show loading state (only if not initialized or currently loading)
+  if ((loading && !initialized) || (loading && guards.length === 0)) {
     return (
       <Box
         sx={{
@@ -101,7 +116,9 @@ const ContentWindow: React.FC = () => {
         }}
       >
         <CircularProgress color="primary" size={48} />
-        <Typography sx={{ fontFamily: "Mukta", fontSize: "16px", color: "#707070" }}>Loading guards data...</Typography>
+        <Typography sx={{ fontFamily: "Mukta", fontSize: "16px", color: "#707070" }}>
+          {initialized ? "Refreshing guards data..." : "Loading guards data..."}
+        </Typography>
         <Typography sx={{ fontFamily: "Mukta", fontSize: "14px", color: "#A0A0A0" }}>
           This may take a few moments
         </Typography>
@@ -109,8 +126,8 @@ const ContentWindow: React.FC = () => {
     );
   }
 
-  // Show error state with retry button
-  if (error && guards.length === 0) {
+  // Show error state with retry button (only if not initialized and has error)
+  if (error && !initialized && guards.length === 0) {
     return (
       <Box
         sx={{
@@ -174,7 +191,7 @@ const ContentWindow: React.FC = () => {
       }}
     >
       {/* Error banner (for non-blocking errors) */}
-      {error && guards.length > 0 && (
+      {error && initialized && guards.length > 0 && (
         <Alert
           severity="warning"
           onClose={() => {}}
@@ -250,7 +267,7 @@ const ContentWindow: React.FC = () => {
                 Guards
               </Typography>
             </Box>
-            {/* Text 1 Box - "Guards" */}
+            {/* Guard count */}
             <Box
               className="text1-box"
               sx={{
@@ -279,10 +296,24 @@ const ContentWindow: React.FC = () => {
             </Box>
 
             {/* Loading indicator when refreshing */}
-            {(loading || isRefreshing) && guards.length > 0 && (
+            {(loading || isRefreshing) && initialized && (
               <Box sx={{ ml: 1 }}>
                 <CircularProgress size={16} sx={{ color: "#2A77D5" }} />
               </Box>
+            )}
+
+            {/* Initialization status */}
+            {!initialized && (
+              <Typography
+                sx={{
+                  fontSize: "12px",
+                  color: "#A0A0A0",
+                  fontFamily: "Mukta",
+                  ml: 1,
+                }}
+              >
+                (Initializing...)
+              </Typography>
             )}
           </Box>
         </Box>
@@ -300,10 +331,10 @@ const ContentWindow: React.FC = () => {
           }}
         >
           {/* Refresh Button with enhanced functionality */}
-          <Tooltip title="Refresh data">
+          <Tooltip title={initialized ? "Refresh data (Hold Shift for force refresh)" : "Initialize guards first"}>
             <IconButton
               onClick={(e) => handleRefresh(e.shiftKey)} // Force refresh if Shift is held
-              disabled={isRefreshing}
+              disabled={isRefreshing || !initialized}
               sx={{
                 width: "32px",
                 height: "32px",
@@ -322,7 +353,7 @@ const ContentWindow: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: isRefreshing ? "#A0A0A0" : "#2A77D5",
+                  color: isRefreshing || !initialized ? "#A0A0A0" : "#2A77D5",
                   ...(isRefreshing && {
                     animation: "spin 1s linear infinite",
                     "@keyframes spin": {
@@ -357,6 +388,7 @@ const ContentWindow: React.FC = () => {
               variant="contained"
               className="button1"
               onClick={toggleFilters}
+              disabled={!initialized}
               sx={{
                 width: "97px",
                 height: "32px",
@@ -367,6 +399,10 @@ const ContentWindow: React.FC = () => {
                 boxShadow: "0px 1px 4px rgba(112, 112, 112, 0.2)",
                 "&:hover": {
                   backgroundColor: showFilters ? "#E3F0FF" : "#F5F5F5",
+                },
+                "&.Mui-disabled": {
+                  backgroundColor: "#F0F0F0",
+                  color: "#A0A0A0",
                 },
                 display: "flex",
                 alignItems: "center",
@@ -379,7 +415,7 @@ const ContentWindow: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: "#2A77D5",
+                  color: !initialized ? "#A0A0A0" : "#2A77D5",
                 }}
               />
               <Typography
@@ -390,7 +426,7 @@ const ContentWindow: React.FC = () => {
                   fontSize: "14px",
                   lineHeight: "16px",
                   textTransform: "uppercase",
-                  color: "#2A77D5",
+                  color: !initialized ? "#A0A0A0" : "#2A77D5",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -488,7 +524,7 @@ const ContentWindow: React.FC = () => {
       </Box>
 
       {/* Filter Component (conditionally rendered) */}
-      {showFilters && (
+      {showFilters && initialized && (
         <FilterComponent
           onApplyFilters={handleApplyFilters}
           onClose={() => setShowFilters(false)}
@@ -496,8 +532,8 @@ const ContentWindow: React.FC = () => {
         />
       )}
 
-      {/* Table Frame Layout */}
-      <GuardTable filters={activeFilters} />
+      {/* Table Frame Layout - Only show if initialized */}
+      {initialized && <GuardTable filters={activeFilters} />}
     </Box>
   );
 };

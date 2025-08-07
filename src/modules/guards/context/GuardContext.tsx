@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import React, { createContext, useContext, useState, type ReactNode } from "react";
 import { guardsAPIService, type Guard } from "../services/guards-api.service";
 
 // Create the context
@@ -9,13 +9,14 @@ interface GuardContextType {
   total: number;
   currentPage: number;
   totalPages: number;
+  initialized: boolean; // Add flag to track if data has been loaded
   getGuardByName: (name: string) => Guard | undefined;
   getGuardById: (id: string) => Promise<Guard>;
   refreshGuards: () => Promise<void>;
   searchGuards: (searchTerm: string) => Promise<void>;
   loadGuards: (page?: number, limit?: number) => Promise<void>;
-  // 🔥 Add a force refresh method
   forceRefreshGuards: () => Promise<void>;
+  initializeGuards: () => Promise<void>; // Add initialization method
 }
 
 const GuardContext = createContext<GuardContextType | undefined>(undefined);
@@ -23,11 +24,12 @@ const GuardContext = createContext<GuardContextType | undefined>(undefined);
 // Provider component
 export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [guards, setGuards] = useState<Guard[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false); // Changed to false initially
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(0);
+  const [initialized, setInitialized] = useState<boolean>(false); // Track initialization
 
   // Load guards from API
   const loadGuards = async (page: number = 1, limit: number = 50) => {
@@ -43,6 +45,7 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setTotal(result.total);
       setCurrentPage(page);
       setTotalPages(result.totalPages);
+      setInitialized(true); // Mark as initialized
 
       console.log("✅ Guards loaded successfully:", result.guards.length, "guards");
     } catch (err: any) {
@@ -54,7 +57,17 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // 🔥 Force refresh guards (bypasses any caching and always fetches fresh data)
+  // Initialize guards (called manually when needed)
+  const initializeGuards = async () => {
+    if (!initialized) {
+      console.log("🚀 Initializing guards for the first time...");
+      await loadGuards();
+    } else {
+      console.log("ℹ️ Guards already initialized, skipping...");
+    }
+  };
+
+  // Force refresh guards (bypasses any caching and always fetches fresh data)
   const forceRefreshGuards = async () => {
     try {
       setLoading(true);
@@ -74,6 +87,7 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setGuards(result.guards);
       setTotal(result.total);
       setTotalPages(result.totalPages);
+      setInitialized(true); // Ensure initialized flag is set
 
       console.log("✅ Guards force refreshed successfully:", result.guards.length, "guards");
     } catch (err: any) {
@@ -148,10 +162,10 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     }
   };
 
-  // Load guards on component mount
-  useEffect(() => {
-    loadGuards();
-  }, []); // Only run once on mount
+  // ❌ REMOVED: Auto-loading useEffect that was causing the issue
+  // useEffect(() => {
+  //   loadGuards();
+  // }, []); 
 
   // Context value
   const value: GuardContextType = {
@@ -161,12 +175,14 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     total,
     currentPage,
     totalPages,
+    initialized,
     getGuardByName,
     getGuardById,
     refreshGuards,
     searchGuards,
     loadGuards,
-    forceRefreshGuards, // 🔥 Expose force refresh method
+    forceRefreshGuards,
+    initializeGuards, // Add initialization method
   };
 
   return <GuardContext.Provider value={value}>{children}</GuardContext.Provider>;

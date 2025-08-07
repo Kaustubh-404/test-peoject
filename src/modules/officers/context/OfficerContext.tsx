@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import React, { createContext, useContext, useState, type ReactNode } from "react";
 import { officersAPIService, type Officer } from "../service/officers-api.service";
 
 // Create the context
@@ -9,13 +9,14 @@ interface OfficerContextType {
   total: number;
   currentPage: number;
   totalPages: number;
+  initialized: boolean; // Add flag to track if data has been loaded
   getOfficerByName: (name: string) => Officer | undefined;
   getOfficerById: (id: string) => Promise<Officer>;
   refreshOfficers: () => Promise<void>;
   searchOfficers: (searchTerm: string) => Promise<void>;
   loadOfficers: (page?: number, limit?: number) => Promise<void>;
-  // 🔥 Add a force refresh method
   forceRefreshOfficers: () => Promise<void>;
+  initializeOfficers: () => Promise<void>; // Add initialization method
 }
 
 const OfficerContext = createContext<OfficerContextType | undefined>(undefined);
@@ -23,11 +24,12 @@ const OfficerContext = createContext<OfficerContextType | undefined>(undefined);
 // Provider component
 export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [officers, setOfficers] = useState<Officer[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false); // Changed to false initially
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(0);
+  const [initialized, setInitialized] = useState<boolean>(false); // Track initialization
 
   // Load officers from API
   const loadOfficers = async (page: number = 1, limit: number = 50) => {
@@ -43,6 +45,7 @@ export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children })
       setTotal(result.total);
       setCurrentPage(page);
       setTotalPages(result.totalPages);
+      setInitialized(true); // Mark as initialized
 
       console.log("✅ Officers loaded successfully:", result.officers.length, "officers");
     } catch (err: any) {
@@ -54,7 +57,17 @@ export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  // 🔥 Force refresh officers (bypasses any caching and always fetches fresh data)
+  // Initialize officers (called manually when needed)
+  const initializeOfficers = async () => {
+    if (!initialized) {
+      console.log("🚀 Initializing officers for the first time...");
+      await loadOfficers();
+    } else {
+      console.log("ℹ️ Officers already initialized, skipping...");
+    }
+  };
+
+  // Force refresh officers (bypasses any caching and always fetches fresh data)
   const forceRefreshOfficers = async () => {
     try {
       setLoading(true);
@@ -74,6 +87,7 @@ export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children })
       setOfficers(result.officers);
       setTotal(result.total);
       setTotalPages(result.totalPages);
+      setInitialized(true); // Ensure initialized flag is set
 
       console.log("✅ Officers force refreshed successfully:", result.officers.length, "officers");
     } catch (err: any) {
@@ -148,10 +162,10 @@ export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   };
 
-  // Load officers on component mount
-  useEffect(() => {
-    loadOfficers();
-  }, []); // Only run once on mount
+  // ❌ REMOVED: Auto-loading useEffect that was causing the issue
+  // useEffect(() => {
+  //   loadOfficers();
+  // }, []); // Only run once on mount
 
   // Context value
   const value: OfficerContextType = {
@@ -161,12 +175,14 @@ export const OfficerProvider: React.FC<{ children: ReactNode }> = ({ children })
     total,
     currentPage,
     totalPages,
+    initialized,
     getOfficerByName,
     getOfficerById,
     refreshOfficers,
     searchOfficers,
     loadOfficers,
-    forceRefreshOfficers, // 🔥 Expose force refresh method
+    forceRefreshOfficers,
+    initializeOfficers, // Add initialization method
   };
 
   return <OfficerContext.Provider value={value}>{children}</OfficerContext.Provider>;

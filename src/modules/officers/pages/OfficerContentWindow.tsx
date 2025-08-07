@@ -21,8 +21,17 @@ interface FilterState {
 
 // Content Window Component
 const OfficerContentWindow: React.FC = () => {
-  // Get officers data from context (now uses real API)
-  const { officers, loading, error, total, refreshOfficers, forceRefreshOfficers } = useOfficers();
+  // Get officers data from context
+  const { 
+    officers, 
+    loading, 
+    error, 
+    total, 
+    initialized, // Get initialization status
+    refreshOfficers, 
+    forceRefreshOfficers, 
+    initializeOfficers // Get initialization method
+  } = useOfficers();
 
   const navigate = useNavigate();
 
@@ -31,7 +40,13 @@ const OfficerContentWindow: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 🔥 Add effect to log when officers array changes (for debugging)
+  // 🔥 Initialize officers when component mounts (ONLY when on officers page)
+  useEffect(() => {
+    console.log("📍 Officers ContentWindow mounted - initializing officers...");
+    initializeOfficers().catch(console.error);
+  }, [initializeOfficers]);
+
+  // Add effect to log when officers array changes (for debugging)
   useEffect(() => {
     console.log("📊 Officers list updated:", officers.length, "officers");
   }, [officers]);
@@ -83,8 +98,8 @@ const OfficerContentWindow: React.FC = () => {
     }
   };
 
-  // Show loading state
-  if (loading && officers.length === 0) {
+  // Show loading state (only if not initialized or currently loading)
+  if ((loading && !initialized) || (loading && officers.length === 0)) {
     return (
       <Box
         sx={{
@@ -101,7 +116,7 @@ const OfficerContentWindow: React.FC = () => {
       >
         <CircularProgress color="primary" size={48} />
         <Typography sx={{ fontFamily: "Mukta", fontSize: "16px", color: "#707070" }}>
-          Loading officers data...
+          {initialized ? "Refreshing officers data..." : "Loading officers data..."}
         </Typography>
         <Typography sx={{ fontFamily: "Mukta", fontSize: "14px", color: "#A0A0A0" }}>
           This may take a few moments
@@ -110,8 +125,8 @@ const OfficerContentWindow: React.FC = () => {
     );
   }
 
-  // Show error state with retry button
-  if (error && officers.length === 0) {
+  // Show error state with retry button (only if not initialized and has error)
+  if (error && !initialized && officers.length === 0) {
     return (
       <Box
         sx={{
@@ -175,7 +190,7 @@ const OfficerContentWindow: React.FC = () => {
       }}
     >
       {/* Error banner (for non-blocking errors) */}
-      {error && officers.length > 0 && (
+      {error && initialized && officers.length > 0 && (
         <Alert
           severity="warning"
           onClose={() => {}}
@@ -282,10 +297,24 @@ const OfficerContentWindow: React.FC = () => {
             </Box>
 
             {/* Loading indicator when refreshing */}
-            {(loading || isRefreshing) && officers.length > 0 && (
+            {(loading || isRefreshing) && initialized && (
               <Box sx={{ ml: 1 }}>
                 <CircularProgress size={16} sx={{ color: "#2A77D5" }} />
               </Box>
+            )}
+
+            {/* Initialization status */}
+            {!initialized && (
+              <Typography
+                sx={{
+                  fontSize: "12px",
+                  color: "#A0A0A0",
+                  fontFamily: "Mukta",
+                  ml: 1,
+                }}
+              >
+                (Initializing...)
+              </Typography>
             )}
           </Box>
         </Box>
@@ -303,10 +332,10 @@ const OfficerContentWindow: React.FC = () => {
           }}
         >
           {/* Refresh Button with enhanced functionality */}
-          <Tooltip title="Refresh data">
+          <Tooltip title={initialized ? "Refresh data (Hold Shift for force refresh)" : "Initialize officers first"}>
             <IconButton
               onClick={(e) => handleRefresh(e.shiftKey)} // Force refresh if Shift is held
-              disabled={isRefreshing}
+              disabled={isRefreshing || !initialized}
               sx={{
                 width: "32px",
                 height: "32px",
@@ -325,7 +354,7 @@ const OfficerContentWindow: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: isRefreshing ? "#A0A0A0" : "#2A77D5",
+                  color: isRefreshing || !initialized ? "#A0A0A0" : "#2A77D5",
                   ...(isRefreshing && {
                     animation: "spin 1s linear infinite",
                     "@keyframes spin": {
@@ -360,6 +389,7 @@ const OfficerContentWindow: React.FC = () => {
               variant="contained"
               className="button1"
               onClick={toggleFilters}
+              disabled={!initialized}
               sx={{
                 width: "97px",
                 height: "32px",
@@ -370,6 +400,10 @@ const OfficerContentWindow: React.FC = () => {
                 boxShadow: "0px 1px 4px rgba(112, 112, 112, 0.2)",
                 "&:hover": {
                   backgroundColor: showFilters ? "#E3F0FF" : "#F5F5F5",
+                },
+                "&.Mui-disabled": {
+                  backgroundColor: "#F0F0F0",
+                  color: "#A0A0A0",
                 },
                 display: "flex",
                 alignItems: "center",
@@ -382,7 +416,7 @@ const OfficerContentWindow: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: "#2A77D5",
+                  color: !initialized ? "#A0A0A0" : "#2A77D5",
                 }}
               />
               <Typography
@@ -393,7 +427,7 @@ const OfficerContentWindow: React.FC = () => {
                   fontSize: "14px",
                   lineHeight: "16px",
                   textTransform: "uppercase",
-                  color: "#2A77D5",
+                  color: !initialized ? "#A0A0A0" : "#2A77D5",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -491,7 +525,7 @@ const OfficerContentWindow: React.FC = () => {
       </Box>
 
       {/* Filter Component (conditionally rendered) */}
-      {showFilters && (
+      {showFilters && initialized && (
         <OfficerFilterComponent
           onApplyFilters={handleApplyFilters}
           onClose={() => setShowFilters(false)}
@@ -499,8 +533,8 @@ const OfficerContentWindow: React.FC = () => {
         />
       )}
 
-      {/* Table Frame Layout */}
-      <OfficerTable filters={activeFilters} />
+      {/* Table Frame Layout - Only show if initialized */}
+      {initialized && <OfficerTable filters={activeFilters} />}
     </Box>
   );
 };
