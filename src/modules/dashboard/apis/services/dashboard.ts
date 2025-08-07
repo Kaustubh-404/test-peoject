@@ -1,0 +1,346 @@
+import { useApi } from "../../../../apis/base";
+
+// Dashboard overview API response types
+export interface DashboardOverviewData {
+  clientName: string;
+  absent: number;
+  late: number;
+  uniform: number;
+  alert: number;
+  geofence: number;
+}
+
+export interface DashboardOverviewResponse {
+  success: boolean;
+  data: {
+    data: Array<{
+      totalClients: number;
+      overviewData: DashboardOverviewData[];
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Liveliness alerts API response types
+export interface LivelinessAlertData {
+  guardId: string;
+  photo: string;
+  guardName: string;
+  designation: string;
+  clientName: string;
+  siteName: string;
+  dateAndTime: string;
+  where: string;
+}
+
+export interface LivelinessAlertsResponse {
+  success: boolean;
+  data: {
+    data: LivelinessAlertData[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Late uniform summary API response types
+export interface LateUniformSummaryData {
+  clientName: string;
+  lateCount: number;
+  uniform: number;
+}
+
+export interface LateUniformSummaryResponse {
+  success: boolean;
+  data: {
+    data: Array<{
+      totalLateCount: number;
+      totalUniformDefaultCount: number;
+      overviewData: LateUniformSummaryData[];
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Shift performance issues API response types
+export interface ShiftPerformanceData {
+  clientName: string;
+  alertness: number;
+  geofence: number;
+}
+
+export interface ShiftPerformanceResponse {
+  success: boolean;
+  data: {
+    data: Array<{
+      totalAlertnessCount: number;
+      totalGeofenceCount: number;
+      overviewData: ShiftPerformanceData[];
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Area officers API response types
+export interface AreaOfficersData {
+  clientName: string;
+  lateCount: number;
+  uniform: number;
+}
+
+export interface AreaOfficersResponse {
+  success: boolean;
+  data: {
+    data: Array<{
+      totalAbsentCount: number;
+      totalLateCount: number;
+      totalUniformDefaultCount: number;
+      overviewData: AreaOfficersData[];
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Incident reports API response types
+export interface IncidentReportData {
+  incidentId: string;
+  clientName: string;
+  siteName: string;
+  events: string[];
+  dateAndTime: string;
+  status: "OPEN" | "CLOSED";
+  latestAlert: string;
+}
+
+export interface IncidentReportsResponse {
+  success: boolean;
+  data: {
+    data: Array<{
+      totalIncidents: number;
+      openIncidents: number;
+      closedIncidents: number;
+      incidentReports: IncidentReportData[];
+    }>;
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
+// Get dashboard overview API service
+export const getDashboardOverview = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<DashboardOverviewResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/overview${queryString}`);
+};
+
+// Get liveliness alerts API service
+export const getLivelinessAlerts = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<LivelinessAlertsResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/liveliness-alerts${queryString}`);
+};
+
+// Get late uniform summary API service
+export const getLateUniformSummary = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<LateUniformSummaryResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/late-uniform-summary${queryString}`);
+};
+
+// Get shift performance issues API service
+export const getShiftPerformanceIssues = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<ShiftPerformanceResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/shift-performance-issues${queryString}`);
+};
+
+// Get area officers API service
+export const getAreaOfficers = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<AreaOfficersResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/area-officers-only/absent-late-uniform${queryString}`);
+};
+
+// Get incident reports API service
+export const getIncidentReports = async (params: {
+  opAgencyId: string;
+  clientId?: string;
+  dutyDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: string;
+  userTypeFilter?: string;
+  incidentStatus?: string;
+}): Promise<IncidentReportsResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/dashboard/incident-reports${queryString}`);
+};
