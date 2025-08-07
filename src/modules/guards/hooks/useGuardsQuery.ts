@@ -1,5 +1,6 @@
 // File: src/hooks/useGuardsQuery.ts
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import React from "react";
 import { guardsAPIService, type Guard } from "../services/guards-api.service";
 
 // Query keys for guards
@@ -18,9 +19,10 @@ export const useGuardsQuery = (params?: { page?: number; limit?: number; search?
     queryFn: () => guardsAPIService.getGuards(params),
     enabled: params?.enabled !== false,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes (previously cacheTime)
+    gcTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,
-    refetchOnMount: true,
+    refetchOnMount: false, // ✅ Changed to false to prevent unnecessary refetches
+    refetchOnReconnect: false, // ✅ Added to prevent refetch on network reconnect
     retry: (failureCount, error: any) => {
       // Don't retry on auth errors
       if (error?.response?.status === 401 || error?.response?.status === 403) {
@@ -39,9 +41,10 @@ export const useGuardQuery = (id: string | undefined, enabled: boolean = true) =
     queryKey: guardsQueryKeys.detail(id || ""),
     queryFn: () => guardsAPIService.getGuardById(id!),
     enabled: !!id && enabled,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 10 * 60 * 1000, // 10 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes for individual guards
+    gcTime: 15 * 60 * 1000, // 15 minutes
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // ✅ Prevent unnecessary refetches
     retry: (failureCount, error: any) => {
       if (error?.response?.status === 404) {
         return false; // Don't retry if guard not found
@@ -63,6 +66,7 @@ export const useGuardsSearch = (searchTerm: string, enabled: boolean = true) => 
     staleTime: 2 * 60 * 1000, // 2 minutes for search results
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
+    refetchOnMount: false, // ✅ Prevent unnecessary refetches
   });
 };
 
@@ -70,7 +74,9 @@ export const useGuardsSearch = (searchTerm: string, enabled: boolean = true) => 
 export const useGuardsWithState = () => {
   const queryClient = useQueryClient();
 
-  const { data, isLoading, error, refetch, isRefetching } = useGuardsQuery();
+  const { data, isLoading, error, refetch, isRefetching } = useGuardsQuery({
+    enabled: true, // Only enable when explicitly needed
+  });
 
   // Extract data with defaults
   const guards = data?.guards || [];
@@ -78,45 +84,49 @@ export const useGuardsWithState = () => {
   const currentPage = data?.page || 1;
   const totalPages = data?.totalPages || 0;
 
-  // Refresh function
-  const refreshGuards = async () => {
+  // Memoized refresh function
+  const refreshGuards = React.useCallback(async () => {
     await refetch();
-  };
+  }, [refetch]);
 
-  // Invalidate all guards queries
-  const invalidateGuards = () => {
+  // Memoized invalidate function
+  const invalidateGuards = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: guardsQueryKeys.all });
-  };
+  }, [queryClient]);
 
-  // Get guard by name from loaded data
-  const getGuardByName = (name: string): Guard | undefined => {
-    const formattedSearchName = name.toLowerCase();
+  // Memoized get guard by name
+  const getGuardByName = React.useCallback(
+    (name: string): Guard | undefined => {
+      const formattedSearchName = name.toLowerCase();
 
-    // Try exact match first
-    let guard = guards.find((g) => g.name.toLowerCase() === formattedSearchName);
+      let guard = guards.find((g) => g.name.toLowerCase() === formattedSearchName);
 
-    // If not found, try to match against URL-formatted name
-    if (!guard) {
-      guard = guards.find((g) => {
-        const guardNameUrl = g.name.toLowerCase().replace(/\s+/g, "-");
-        return guardNameUrl === formattedSearchName || formattedSearchName.includes(guardNameUrl);
-      });
-    }
+      if (!guard) {
+        guard = guards.find((g) => {
+          const guardNameUrl = g.name.toLowerCase().replace(/\s+/g, "-");
+          return guardNameUrl === formattedSearchName || formattedSearchName.includes(guardNameUrl);
+        });
+      }
 
-    return guard;
-  };
+      return guard;
+    },
+    [guards]
+  );
 
-  // Get guard by ID (will fetch if not in cache)
-  const getGuardById = async (id: string): Promise<Guard> => {
-    // First try to find in current data
-    const guardInList = guards.find((g) => g.id === id);
-    if (guardInList) {
-      return guardInList;
-    }
+  // Memoized get guard by ID
+  const getGuardById = React.useCallback(
+    async (id: string): Promise<Guard> => {
+      // First try to find in current data
+      const guardInList = guards.find((g) => g.id === id);
+      if (guardInList) {
+        return guardInList;
+      }
 
-    // If not found, fetch from API
-    return await guardsAPIService.getGuardById(id);
-  };
+      // If not found, fetch from API
+      return await guardsAPIService.getGuardById(id);
+    },
+    [guards]
+  );
 
   return {
     guards,

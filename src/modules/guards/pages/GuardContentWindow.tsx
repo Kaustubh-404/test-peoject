@@ -3,7 +3,7 @@ import DraftsIcon from "@mui/icons-material/Drafts";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { Alert, Badge, Box, Button, CircularProgress, IconButton, Tooltip, Typography } from "@mui/material";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import GuardTable from "../columns/guardtable";
 import FilterComponent from "../components/GuardFilterComponent";
@@ -20,43 +20,40 @@ interface FilterState {
   trustScore: number | null;
 }
 
-// Content Window Component
 const ContentWindow: React.FC = () => {
-  // Get guards data from context
-  const { 
-    guards, 
-    loading, 
-    error, 
-    total, 
-    initialized, // Get initialization status
-    refreshGuards, 
-    forceRefreshGuards, 
-    initializeGuards // Get initialization method
-  } = useGuards();
+  const { guards, loading, error, total, initialized, refreshGuards, forceRefreshGuards, initializeGuards } =
+    useGuards();
 
   const navigate = useNavigate();
+  const initializationAttempted = useRef(false); // ✅ Track if initialization was attempted
 
   // State for filters
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 🔥 Initialize guards when component mounts (ONLY when on guards page)
+  // ✅ Fixed initialization - only run once and track attempts
   useEffect(() => {
-    console.log("📍 Guards ContentWindow mounted - initializing guards...");
-    initializeGuards().catch(console.error);
-  }, [initializeGuards]);
+    if (!initialized && !loading && !initializationAttempted.current) {
+      console.log("📍 Guards ContentWindow mounted - initializing guards...");
+      initializationAttempted.current = true;
+      initializeGuards().catch((error) => {
+        console.error("❌ Failed to initialize guards:", error);
+        initializationAttempted.current = false; // Reset on error to allow retry
+      });
+    }
+  }, [initialized, loading, initializeGuards]); // ✅ Stable dependencies
 
-  // Add effect to log when guards array changes (for debugging)
+  // Debug effect to log when guards array changes
   useEffect(() => {
     console.log("📊 Guards list updated:", guards.length, "guards");
-  }, [guards]);
+  }, [guards.length]); // ✅ Only depend on length, not the entire array
 
-  // Calculate filtered count - count only non-empty array filters and non-null values
+  // Calculate filtered count
   const filterCount = activeFilters
     ? Object.entries(activeFilters).reduce((count, [_key, value]) => {
         if (Array.isArray(value) && value.length > 0) {
-          return count + 1; // Count each filter category only once, not each selected item
+          return count + 1;
         } else if (value !== null && !Array.isArray(value)) {
           return count + 1;
         }
@@ -64,40 +61,41 @@ const ContentWindow: React.FC = () => {
       }, 0)
     : 0;
 
-  // Toggle filter visibility
-  const toggleFilters = () => {
+  // Memoized handlers to prevent unnecessary re-renders
+  const toggleFilters = React.useCallback(() => {
     setShowFilters(!showFilters);
-  };
+  }, [showFilters]);
 
-  // Apply filters
-  const handleApplyFilters = (filters: FilterState) => {
+  const handleApplyFilters = React.useCallback((filters: FilterState) => {
     setActiveFilters(filters);
-  };
+  }, []);
 
-  // Navigate to Add New Guard page
-  const handleAddNewGuard = () => {
+  const handleAddNewGuard = React.useCallback(() => {
     navigate("/add-guard");
-  };
+  }, [navigate]);
 
   // Handle refresh with force refresh option
-  const handleRefresh = async (forceRefresh: boolean = false) => {
-    try {
-      setIsRefreshing(true);
-      console.log(`🔄 ${forceRefresh ? "Force refreshing" : "Refreshing"} guards list...`);
+  const handleRefresh = React.useCallback(
+    async (forceRefresh: boolean = false) => {
+      try {
+        setIsRefreshing(true);
+        console.log(`🔄 ${forceRefresh ? "Force refreshing" : "Refreshing"} guards list...`);
 
-      if (forceRefresh) {
-        await forceRefreshGuards();
-      } else {
-        await refreshGuards();
+        if (forceRefresh) {
+          await forceRefreshGuards();
+        } else {
+          await refreshGuards();
+        }
+
+        console.log("✅ Guards list refreshed successfully!");
+      } catch (error) {
+        console.error("Failed to refresh guards:", error);
+      } finally {
+        setIsRefreshing(false);
       }
-
-      console.log("✅ Guards list refreshed successfully!");
-    } catch (error) {
-      console.error("Failed to refresh guards:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+    },
+    [forceRefreshGuards, refreshGuards]
+  );
 
   // Show loading state (only if not initialized or currently loading)
   if ((loading && !initialized) || (loading && guards.length === 0)) {
@@ -126,7 +124,7 @@ const ContentWindow: React.FC = () => {
     );
   }
 
-  // Show error state with retry button (only if not initialized and has error)
+  // Show error state with retry button
   if (error && !initialized && guards.length === 0) {
     return (
       <Box
@@ -157,7 +155,10 @@ const ContentWindow: React.FC = () => {
         <Button
           variant="contained"
           color="primary"
-          onClick={() => handleRefresh(true)} // Force refresh on error retry
+          onClick={() => {
+            initializationAttempted.current = false; // Reset flag
+            handleRefresh(true);
+          }}
           startIcon={<RefreshIcon />}
           disabled={isRefreshing}
           sx={{
@@ -330,10 +331,10 @@ const ContentWindow: React.FC = () => {
             alignItems: "center",
           }}
         >
-          {/* Refresh Button with enhanced functionality */}
+          {/* Refresh Button */}
           <Tooltip title={initialized ? "Refresh data (Hold Shift for force refresh)" : "Initialize guards first"}>
             <IconButton
-              onClick={(e) => handleRefresh(e.shiftKey)} // Force refresh if Shift is held
+              onClick={(e) => handleRefresh(e.shiftKey)}
               disabled={isRefreshing || !initialized}
               sx={{
                 width: "32px",
@@ -366,7 +367,7 @@ const ContentWindow: React.FC = () => {
             </IconButton>
           </Tooltip>
 
-          {/* Button 1 - Filters */}
+          {/* Filters Button */}
           <Badge
             badgeContent={filterCount}
             color="primary"
@@ -435,7 +436,7 @@ const ContentWindow: React.FC = () => {
             </Button>
           </Badge>
 
-          {/* Button 2 - Add New Guard */}
+          {/* Add New Guard Button */}
           <Button
             variant="contained"
             className="button2"
@@ -477,7 +478,7 @@ const ContentWindow: React.FC = () => {
             </Typography>
           </Button>
 
-          {/* Button 3 - Drafts */}
+          {/* Drafts Button */}
           <Button
             variant="contained"
             className="button3"
@@ -525,11 +526,7 @@ const ContentWindow: React.FC = () => {
 
       {/* Filter Component (conditionally rendered) */}
       {showFilters && initialized && (
-        <FilterComponent
-          onApplyFilters={handleApplyFilters}
-          onClose={() => setShowFilters(false)}
-          allGuards={guards} // Use real guards from API
-        />
+        <FilterComponent onApplyFilters={handleApplyFilters} onClose={() => setShowFilters(false)} allGuards={guards} />
       )}
 
       {/* Table Frame Layout - Only show if initialized */}

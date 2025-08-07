@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, type ReactNode } from "react";
+import React, { createContext, useCallback, useContext, useState, type ReactNode } from "react";
 import { guardsAPIService, type Guard } from "../services/guards-api.service";
 
 // Create the context
@@ -9,30 +9,29 @@ interface GuardContextType {
   total: number;
   currentPage: number;
   totalPages: number;
-  initialized: boolean; // Add flag to track if data has been loaded
+  initialized: boolean;
   getGuardByName: (name: string) => Guard | undefined;
   getGuardById: (id: string) => Promise<Guard>;
   refreshGuards: () => Promise<void>;
   searchGuards: (searchTerm: string) => Promise<void>;
   loadGuards: (page?: number, limit?: number) => Promise<void>;
   forceRefreshGuards: () => Promise<void>;
-  initializeGuards: () => Promise<void>; // Add initialization method
+  initializeGuards: () => Promise<void>;
 }
 
 const GuardContext = createContext<GuardContextType | undefined>(undefined);
 
-// Provider component
 export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [guards, setGuards] = useState<Guard[]>([]);
-  const [loading, setLoading] = useState<boolean>(false); // Changed to false initially
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState<number>(0);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(0);
-  const [initialized, setInitialized] = useState<boolean>(false); // Track initialization
+  const [initialized, setInitialized] = useState<boolean>(false);
 
-  // Load guards from API
-  const loadGuards = async (page: number = 1, limit: number = 50) => {
+  // Memoize loadGuards to prevent unnecessary re-renders
+  const loadGuards = useCallback(async (page: number = 1, limit: number = 50) => {
     try {
       setLoading(true);
       setError(null);
@@ -45,49 +44,48 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       setTotal(result.total);
       setCurrentPage(page);
       setTotalPages(result.totalPages);
-      setInitialized(true); // Mark as initialized
+      setInitialized(true);
 
       console.log("✅ Guards loaded successfully:", result.guards.length, "guards");
     } catch (err: any) {
       console.error("❌ Failed to load guards:", err);
       setError(err.message || "Failed to load guards");
-      setGuards([]); // Clear guards on error
+      setGuards([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array since it doesn't depend on any state
 
-  // Initialize guards (called manually when needed)
-  const initializeGuards = async () => {
-    if (!initialized) {
+  // Memoize initializeGuards to prevent re-creation
+  const initializeGuards = useCallback(async () => {
+    if (!initialized && !loading) {
+      // Add loading check to prevent concurrent calls
       console.log("🚀 Initializing guards for the first time...");
       await loadGuards();
     } else {
-      console.log("ℹ️ Guards already initialized, skipping...");
+      console.log("ℹ️ Guards already initialized or loading, skipping...");
     }
-  };
+  }, [initialized, loading, loadGuards]);
 
-  // Force refresh guards (bypasses any caching and always fetches fresh data)
-  const forceRefreshGuards = async () => {
+  // Memoize other functions
+  const forceRefreshGuards = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
       console.log("🔄 Force refreshing guards from API (bypassing cache)...");
 
-      // Add a timestamp to bypass any potential caching
       const timestamp = new Date().getTime();
       const result = await guardsAPIService.getGuards({
         page: currentPage,
         limit: 50,
-        // Add timestamp as a query param to force fresh request
         _t: timestamp,
       } as any);
 
       setGuards(result.guards);
       setTotal(result.total);
       setTotalPages(result.totalPages);
-      setInitialized(true); // Ensure initialized flag is set
+      setInitialized(true);
 
       console.log("✅ Guards force refreshed successfully:", result.guards.length, "guards");
     } catch (err: any) {
@@ -96,99 +94,104 @@ export const GuardProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage]);
 
-  // Function to get a guard by name (search in loaded guards)
-  const getGuardByName = (name: string): Guard | undefined => {
-    // Format the name to match URL format (lowercase with hyphens)
-    const formattedSearchName = name.toLowerCase();
-
-    // Try exact match first
-    let guard = guards.find((g) => g.name.toLowerCase() === formattedSearchName);
-
-    // If not found, try to match against URL-formatted name
-    if (!guard) {
-      guard = guards.find((g) => {
-        const guardNameUrl = g.name.toLowerCase().replace(/\s+/g, "-");
-        return guardNameUrl === formattedSearchName || formattedSearchName.includes(guardNameUrl);
-      });
-    }
-
-    return guard;
-  };
-
-  // Function to get a guard by ID (API call)
-  const getGuardById = async (id: string): Promise<Guard> => {
-    try {
-      return await guardsAPIService.getGuardById(id);
-    } catch (err: any) {
-      console.error("❌ Failed to get guard by ID:", err);
-      throw err;
-    }
-  };
-
-  // Function to refresh guards (reload from API)
-  const refreshGuards = async () => {
+  const refreshGuards = useCallback(async () => {
     console.log("🔄 Refreshing guards list...");
     await loadGuards(currentPage);
-  };
+  }, [currentPage, loadGuards]);
 
-  // Function to search guards
-  const searchGuards = async (searchTerm: string) => {
-    try {
-      setLoading(true);
-      setError(null);
+  const searchGuards = useCallback(
+    async (searchTerm: string) => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      console.log("🔍 Searching guards:", searchTerm);
+        console.log("🔍 Searching guards:", searchTerm);
 
-      if (!searchTerm.trim()) {
-        // If search term is empty, reload all guards
-        await loadGuards();
-        return;
+        if (!searchTerm.trim()) {
+          await loadGuards();
+          return;
+        }
+
+        const searchResults = await guardsAPIService.searchGuards(searchTerm);
+        setGuards(searchResults);
+        setTotal(searchResults.length);
+        setCurrentPage(1);
+        setTotalPages(1);
+
+        console.log("✅ Search completed:", searchResults.length, "guards found");
+      } catch (err: any) {
+        console.error("❌ Search failed:", err);
+        setError(err.message || "Search failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [loadGuards]
+  );
+
+  const getGuardByName = useCallback(
+    (name: string): Guard | undefined => {
+      const formattedSearchName = name.toLowerCase();
+
+      let guard = guards.find((g) => g.name.toLowerCase() === formattedSearchName);
+
+      if (!guard) {
+        guard = guards.find((g) => {
+          const guardNameUrl = g.name.toLowerCase().replace(/\s+/g, "-");
+          return guardNameUrl === formattedSearchName || formattedSearchName.includes(guardNameUrl);
+        });
       }
 
-      const searchResults = await guardsAPIService.searchGuards(searchTerm);
-      setGuards(searchResults);
-      setTotal(searchResults.length);
-      setCurrentPage(1);
-      setTotalPages(1);
+      return guard;
+    },
+    [guards]
+  );
 
-      console.log("✅ Search completed:", searchResults.length, "guards found");
-    } catch (err: any) {
-      console.error("❌ Search failed:", err);
-      setError(err.message || "Search failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const getGuardById = useCallback(async (id: string): Promise<Guard> => {
+    return await guardsAPIService.getGuardById(id);
+  }, []);
 
-  // ❌ REMOVED: Auto-loading useEffect that was causing the issue
-  // useEffect(() => {
-  //   loadGuards();
-  // }, []); 
-
-  // Context value
-  const value: GuardContextType = {
-    guards,
-    loading,
-    error,
-    total,
-    currentPage,
-    totalPages,
-    initialized,
-    getGuardByName,
-    getGuardById,
-    refreshGuards,
-    searchGuards,
-    loadGuards,
-    forceRefreshGuards,
-    initializeGuards, // Add initialization method
-  };
+  // Memoize context value to prevent unnecessary re-renders
+  const value = React.useMemo<GuardContextType>(
+    () => ({
+      guards,
+      loading,
+      error,
+      total,
+      currentPage,
+      totalPages,
+      initialized,
+      getGuardByName,
+      getGuardById,
+      refreshGuards,
+      searchGuards,
+      loadGuards,
+      forceRefreshGuards,
+      initializeGuards,
+    }),
+    [
+      guards,
+      loading,
+      error,
+      total,
+      currentPage,
+      totalPages,
+      initialized,
+      getGuardByName,
+      getGuardById,
+      refreshGuards,
+      searchGuards,
+      loadGuards,
+      forceRefreshGuards,
+      initializeGuards,
+    ]
+  );
 
   return <GuardContext.Provider value={value}>{children}</GuardContext.Provider>;
 };
 
-// Custom hook for using the guard context
 export const useGuards = () => {
   const context = useContext(GuardContext);
   if (context === undefined) {
@@ -197,5 +200,4 @@ export const useGuards = () => {
   return context;
 };
 
-// Export the Guard interface for use in other components
 export type { Guard };

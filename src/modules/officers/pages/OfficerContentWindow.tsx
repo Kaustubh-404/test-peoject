@@ -3,7 +3,7 @@ import DraftsIcon from "@mui/icons-material/Drafts";
 import FilterListIcon from "@mui/icons-material/FilterList";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import { Alert, Badge, Box, Button, CircularProgress, IconButton, Tooltip, Typography } from "@mui/material";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import OfficerFilterComponent from "../components/OfficerFilterComponent";
 import OfficerTable from "../components/OfficerTable";
@@ -19,43 +19,40 @@ interface FilterState {
   trustScore: number | null;
 }
 
-// Content Window Component
 const OfficerContentWindow: React.FC = () => {
-  // Get officers data from context
-  const { 
-    officers, 
-    loading, 
-    error, 
-    total, 
-    initialized, // Get initialization status
-    refreshOfficers, 
-    forceRefreshOfficers, 
-    initializeOfficers // Get initialization method
-  } = useOfficers();
+  const { officers, loading, error, total, initialized, refreshOfficers, forceRefreshOfficers, initializeOfficers } =
+    useOfficers();
 
   const navigate = useNavigate();
+  const initializationAttempted = useRef(false); // ✅ Track if initialization was attempted
 
   // State for filters
   const [showFilters, setShowFilters] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterState | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // 🔥 Initialize officers when component mounts (ONLY when on officers page)
+  // ✅ Fixed initialization - only run once and track attempts
   useEffect(() => {
-    console.log("📍 Officers ContentWindow mounted - initializing officers...");
-    initializeOfficers().catch(console.error);
-  }, [initializeOfficers]);
+    if (!initialized && !loading && !initializationAttempted.current) {
+      console.log("📍 Officers ContentWindow mounted - initializing officers...");
+      initializationAttempted.current = true;
+      initializeOfficers().catch((error) => {
+        console.error("❌ Failed to initialize officers:", error);
+        initializationAttempted.current = false; // Reset on error to allow retry
+      });
+    }
+  }, [initialized, loading, initializeOfficers]); // ✅ Stable dependencies
 
-  // Add effect to log when officers array changes (for debugging)
+  // Debug effect to log when officers array changes
   useEffect(() => {
     console.log("📊 Officers list updated:", officers.length, "officers");
-  }, [officers]);
+  }, [officers.length]); // ✅ Only depend on length, not the entire array
 
-  // Calculate filtered count - count only non-empty array filters and non-null values
+  // Calculate filtered count
   const filterCount = activeFilters
     ? Object.entries(activeFilters).reduce((count, [_key, value]) => {
         if (Array.isArray(value) && value.length > 0) {
-          return count + 1; // Count each filter category only once, not each selected item
+          return count + 1;
         } else if (value !== null && !Array.isArray(value)) {
           return count + 1;
         }
@@ -63,40 +60,41 @@ const OfficerContentWindow: React.FC = () => {
       }, 0)
     : 0;
 
-  // Toggle filter visibility
-  const toggleFilters = () => {
+  // Memoized handlers to prevent unnecessary re-renders
+  const toggleFilters = useCallback(() => {
     setShowFilters(!showFilters);
-  };
+  }, [showFilters]);
 
-  // Apply filters
-  const handleApplyFilters = (filters: FilterState) => {
+  const handleApplyFilters = useCallback((filters: FilterState) => {
     setActiveFilters(filters);
-  };
+  }, []);
 
-  // Navigate to Add New Officer page
-  const handleAddNewOfficer = () => {
+  const handleAddNewOfficer = useCallback(() => {
     navigate("/add-officer");
-  };
+  }, [navigate]);
 
   // Handle refresh with force refresh option
-  const handleRefresh = async (forceRefresh: boolean = false) => {
-    try {
-      setIsRefreshing(true);
-      console.log(`🔄 ${forceRefresh ? "Force refreshing" : "Refreshing"} officers list...`);
+  const handleRefresh = useCallback(
+    async (forceRefresh: boolean = false) => {
+      try {
+        setIsRefreshing(true);
+        console.log(`🔄 ${forceRefresh ? "Force refreshing" : "Refreshing"} officers list...`);
 
-      if (forceRefresh) {
-        await forceRefreshOfficers();
-      } else {
-        await refreshOfficers();
+        if (forceRefresh) {
+          await forceRefreshOfficers();
+        } else {
+          await refreshOfficers();
+        }
+
+        console.log("✅ Officers list refreshed successfully!");
+      } catch (error) {
+        console.error("Failed to refresh officers:", error);
+      } finally {
+        setIsRefreshing(false);
       }
-
-      console.log("✅ Officers list refreshed successfully!");
-    } catch (error) {
-      console.error("Failed to refresh officers:", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
+    },
+    [forceRefreshOfficers, refreshOfficers]
+  );
 
   // Show loading state (only if not initialized or currently loading)
   if ((loading && !initialized) || (loading && officers.length === 0)) {
@@ -125,7 +123,7 @@ const OfficerContentWindow: React.FC = () => {
     );
   }
 
-  // Show error state with retry button (only if not initialized and has error)
+  // Show error state with retry button
   if (error && !initialized && officers.length === 0) {
     return (
       <Box
@@ -156,7 +154,10 @@ const OfficerContentWindow: React.FC = () => {
         <Button
           variant="contained"
           color="primary"
-          onClick={() => handleRefresh(true)} // Force refresh on error retry
+          onClick={() => {
+            initializationAttempted.current = false; // Reset flag
+            handleRefresh(true);
+          }}
           startIcon={<RefreshIcon />}
           disabled={isRefreshing}
           sx={{
@@ -240,7 +241,6 @@ const OfficerContentWindow: React.FC = () => {
               alignItems: "center",
             }}
           >
-            {/* Text 1 Box - "Officers" */}
             <Box
               className="text1-box"
               sx={{
@@ -268,7 +268,7 @@ const OfficerContentWindow: React.FC = () => {
               </Typography>
             </Box>
 
-            {/* Text 2 Box - Count of officers */}
+            {/* Officer count */}
             <Box
               className="text2-box"
               sx={{
@@ -331,10 +331,10 @@ const OfficerContentWindow: React.FC = () => {
             alignItems: "center",
           }}
         >
-          {/* Refresh Button with enhanced functionality */}
+          {/* Refresh Button */}
           <Tooltip title={initialized ? "Refresh data (Hold Shift for force refresh)" : "Initialize officers first"}>
             <IconButton
-              onClick={(e) => handleRefresh(e.shiftKey)} // Force refresh if Shift is held
+              onClick={(e) => handleRefresh(e.shiftKey)}
               disabled={isRefreshing || !initialized}
               sx={{
                 width: "32px",
@@ -367,7 +367,7 @@ const OfficerContentWindow: React.FC = () => {
             </IconButton>
           </Tooltip>
 
-          {/* Button 1 - Filters */}
+          {/* Filters Button */}
           <Badge
             badgeContent={filterCount}
             color="primary"
@@ -436,7 +436,7 @@ const OfficerContentWindow: React.FC = () => {
             </Button>
           </Badge>
 
-          {/* Button 2 - Add New Officer */}
+          {/* Add New Officer Button */}
           <Button
             variant="contained"
             className="button2"
@@ -478,7 +478,7 @@ const OfficerContentWindow: React.FC = () => {
             </Typography>
           </Button>
 
-          {/* Button 3 - Drafts */}
+          {/* Drafts Button */}
           <Button
             variant="contained"
             className="button3"
@@ -529,7 +529,7 @@ const OfficerContentWindow: React.FC = () => {
         <OfficerFilterComponent
           onApplyFilters={handleApplyFilters}
           onClose={() => setShowFilters(false)}
-          allOfficers={officers} // Use real officers from API
+          allOfficers={officers}
         />
       )}
 
