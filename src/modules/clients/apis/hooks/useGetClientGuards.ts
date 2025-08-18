@@ -6,7 +6,7 @@ export const useGetClientGuards = (clientId: string) => {
   return useQuery({
     queryKey: ["guards", clientId],
     queryFn: async () => {
-      return get(`/guard-references/client/guards/${clientId}`);
+      return get(`/guard-references/client/guards/{clientId}?clientId=${clientId}`);
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,
@@ -18,7 +18,7 @@ export const useGetClientAreaOfficers = (clientId: string) => {
   return useQuery({
     queryKey: ["areaOfficers", clientId],
     queryFn: async () => {
-      return get(`/guard-references/areaOfficers/${clientId}`);
+      return get(`/guard-references/areaOfficers/{clientId}?clientId=${clientId}`);
     },
     staleTime: 5 * 60 * 1000,
     refetchInterval: 10 * 60 * 1000,

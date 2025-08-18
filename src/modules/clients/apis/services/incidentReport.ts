@@ -1,55 +1,46 @@
 import { useApi } from "../../../../apis/base";
 
-// Incident report API response types
-export interface IncidentReportData {
+export interface IncidentReport {
   id: string;
-  status: string;
+  status: "OPEN" | "CLOSED";
   dateAndTime: string;
-  closedAt?: string;
-  siteName: string;
+  closedAt?: string | null;
+  areaOfficerId: string;
   siteId: string;
   events: string[];
-  eventCount: number;
-  evidenceCount: number;
-  duration: number;
+  client: {
+    id: string;
+    clientName: string;
+    clientLogo: string;
+  };
+  site: {
+    id: string;
+    siteName: string;
+  };
 }
 
 export interface IncidentReportResponse {
   success: boolean;
-  data: {
-    clientId: string;
-    clientName: string;
-    dateRange: {
-      startDate: string;
-      endDate: string;
-    };
-    totalIncidents: number;
-    openIncidents: number;
-    closedIncidents: number;
-    incidents: IncidentReportData[];
-  };
+  data: IncidentReport[];
   timestamp: string;
 }
 
-// Get client incident report API service
 export const getClientIncidentReport = async (params: {
   clientId: string;
-  status: "OPEN" | "CLOSED";
   startDate?: string;
   endDate?: string;
 }): Promise<IncidentReportResponse> => {
   const { get } = useApi;
 
   const searchParams = new URLSearchParams();
-  searchParams.append("status", params.status);
 
-  if (params.startDate) {
-    searchParams.append("startDate", params.startDate);
-  }
-  if (params.endDate) {
-    searchParams.append("endDate", params.endDate);
-  }
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
 
   const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
-  return get(`/clients/incident/report/client/${params.clientId}${queryString}`);
+  return get(`/incidents${queryString}`);
 };

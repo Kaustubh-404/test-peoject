@@ -1,10 +1,10 @@
-// AddNewGuards.tsx - Complete implementation with all requirements
+// AddNewGuards.tsx - Updated with API integration for missing fields
 
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckOutlinedIcon from "@mui/icons-material/CheckOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
-import { Alert, Box, Button, CircularProgress, Dialog, DialogContent, Snackbar, Typography } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, Snackbar, Typography } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
@@ -19,8 +19,10 @@ import EmploymentDetailsForm from "../components/AddNewGuard-subComponents/Emplo
 import PersonalDetailsForm from "../components/AddNewGuard-subComponents/PersonalDetailForm";
 import CustomProgressStepper from "../components/ProgressStepper";
 // Import hooks and types
+import { useAuth } from "../../../hooks/useAuth"; // 🔥 NEW: Import auth hook for agency ID
 import { useGuards } from "../context/GuardContext";
 import { useGuardMutations } from "../hooks/useGuardMutations";
+import { useGuardTypes, type GuardType } from "../hooks/useGuardTypes"; // 🔥 NEW: Import guard types hook with type
 import type { GuardFormData } from "../types/guard.types";
 
 // Form steps
@@ -34,14 +36,25 @@ const steps = [
 
 const AddNewGuard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
-  const [saveProgressOpen, setSaveProgressOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const navigate = useNavigate();
+
+  // 🔥 NEW: Get auth context for agency ID
+  const { user } = useAuth();
 
   // Context and mutations
   const { forceRefreshGuards } = useGuards();
   const { createGuard, isCreatingGuard, createGuardError, createGuardSuccess, createGuardData, resetCreateGuard } =
     useGuardMutations();
+
+  // 🔥 NEW: Load guard types for validation
+  const {
+    data: guardTypes = [],
+    isLoading: isLoadingGuardTypes,
+    error: guardTypesError,
+  } = useGuardTypes(user?.agencyId || "", {
+    enabled: !!user?.agencyId,
+  });
 
   // Form setup with react-hook-form
   const {
@@ -62,19 +75,19 @@ const AddNewGuard: React.FC = () => {
         middleName: "",
         lastName: "",
         email: "",
-        dateOfBirth: "", // Only DOB, no age
+        dateOfBirth: "",
         sex: "",
         bloodGroup: "",
         nationality: "",
         height: "",
-        heightUnit: "cm", // Default to cm
+        heightUnit: "cm",
         weight: "",
         identificationMark: "",
         fatherName: "",
-        motherName: "", // Will be made mandatory in validation
+        motherName: "",
         maritalStatus: "",
         spouseName: "",
-        spouseDob: "", // Only DOB for spouse
+        spouseDob: "",
       },
       contactDetails: {
         mobileNumber: "",
@@ -114,9 +127,9 @@ const AddNewGuard: React.FC = () => {
         referredBy: "",
         referralContactNumber: "",
         relationshipWithGuard: "",
-        guardType: "",
+        guardType: "", // 🔥 UPDATED: Will store guard type ID
         psaraCertificationStatus: "",
-        status: "ACTIVE", // Set to ACTIVE by default, no user selection needed
+        status: "ACTIVE",
         isExDefense: false,
         licenseNumber: "",
         dateOfIssue: "",
@@ -128,7 +141,7 @@ const AddNewGuard: React.FC = () => {
           { type: "aadhaar", isSelected: false },
           { type: "birth", isSelected: false },
           { type: "education", isSelected: false },
-          { type: "pan", isSelected: false }, // PAN is now mandatory
+          { type: "pan", isSelected: false },
           { type: "driving", isSelected: false },
           { type: "passport", isSelected: false },
         ],
@@ -140,6 +153,7 @@ const AddNewGuard: React.FC = () => {
   const maritalStatus = watch("personalDetails.maritalStatus");
   const sameAsPermanent = watch("address.sameAsPermanent");
   const documentsVerification = watch("documentVerification.documents");
+  const guardType = watch("employmentDetails.guardType");
 
   // Handle step click from progress stepper (clickable steps)
   const handleStepClick = (stepId: number) => {
@@ -148,7 +162,7 @@ const AddNewGuard: React.FC = () => {
     }
   };
 
-  // Validation logic for each step
+  // 🔥 UPDATED: Enhanced validation with guard type checking
   const validateCurrentStep = async (): Promise<boolean> => {
     let fieldsToValidate: string[] = [];
 
@@ -158,7 +172,7 @@ const AddNewGuard: React.FC = () => {
           "personalDetails.firstName",
           "personalDetails.lastName",
           "personalDetails.email",
-          "personalDetails.dateOfBirth", // Only DOB validation
+          "personalDetails.dateOfBirth",
           "personalDetails.sex",
           "personalDetails.bloodGroup",
           "personalDetails.nationality",
@@ -167,14 +181,21 @@ const AddNewGuard: React.FC = () => {
           "personalDetails.weight",
           "personalDetails.identificationMark",
           "personalDetails.fatherName",
-          "personalDetails.motherName", // Now mandatory
+          "personalDetails.motherName",
           "personalDetails.maritalStatus",
         ];
+
+        // Check if profile photo is uploaded
+        const profilePhoto = watch("personalDetails.profilePhoto");
+        if (!profilePhoto) {
+          alert("Please upload a profile photo before proceeding.");
+          return false;
+        }
 
         // Add spouse validation if married
         if (maritalStatus === "Married") {
           fieldsToValidate.push("personalDetails.spouseName");
-          fieldsToValidate.push("personalDetails.spouseDob"); // Only spouse DOB
+          fieldsToValidate.push("personalDetails.spouseDob");
         }
         break;
 
@@ -189,7 +210,6 @@ const AddNewGuard: React.FC = () => {
         break;
 
       case 3: // Address
-        // Always validate permanent address (Aadhaar verification)
         fieldsToValidate = [
           "address.permanentAddress.addressLine1",
           "address.permanentAddress.addressLine2",
@@ -199,7 +219,6 @@ const AddNewGuard: React.FC = () => {
           "address.permanentAddress.state",
         ];
 
-        // Validate local address only if different from permanent
         if (!sameAsPermanent) {
           fieldsToValidate = [
             ...fieldsToValidate,
@@ -217,17 +236,17 @@ const AddNewGuard: React.FC = () => {
         fieldsToValidate = [
           "employmentDetails.companyId",
           "employmentDetails.dateOfJoining",
-          // Referral fields are now optional - removed from validation
-          "employmentDetails.guardType",
+          "employmentDetails.guardType", // 🔥 UPDATED: Validate guard type ID
           "employmentDetails.psaraCertificationStatus",
-          // status field removed - set to ACTIVE by default
         ];
 
-        // Validate license if required for guard type
-        const guardType = watch("employmentDetails.guardType");
-        const requiresLicense = ["Armed Security Guard", "Personal Security Officer", "Bouncer", "Gun Man"].includes(
-          guardType
-        );
+        // 🔥 UPDATED: Check if selected guard type requires license
+        const selectedGuardType = guardTypes?.find((type: GuardType) => type.id === guardType);
+        const requiresLicense = selectedGuardType
+          ? ["Armed Security Guard", "Personal Security Officer", "Bouncer", "Gun Man", "Gunman"].includes(
+              selectedGuardType.typeName
+            )
+          : false;
 
         if (requiresLicense) {
           fieldsToValidate.push(
@@ -240,9 +259,8 @@ const AddNewGuard: React.FC = () => {
         break;
 
       case 5: // Document Verification
-        // Check mandatory documents (including PAN)
         const selectedDocuments = documentsVerification?.filter((doc) => doc.isSelected) || [];
-        const mandatoryDocTypes = ["aadhaar", "birth", "education", "pan"]; // PAN is mandatory
+        const mandatoryDocTypes = ["aadhaar", "birth", "education", "pan"];
         const selectedMandatoryDocs = selectedDocuments.filter((doc) => mandatoryDocTypes.includes(doc.type));
 
         if (selectedMandatoryDocs.length < mandatoryDocTypes.length) {
@@ -257,20 +275,13 @@ const AddNewGuard: React.FC = () => {
     return await trigger(fieldsToValidate as any);
   };
 
-  // Move to next step - Direct navigation without confirmation
+  // Move to next step
   const nextStep = async () => {
     const isStepValid = await validateCurrentStep();
 
     if (isStepValid) {
-      // Direct navigation to next step without confirmation dialog
       setCurrentStep((prev) => Math.min(prev + 1, 5));
     }
-  };
-
-  // Keep the confirm function for backward compatibility but not used
-  const handleSaveProgressConfirm = () => {
-    setSaveProgressOpen(false);
-    setCurrentStep((prev) => Math.min(prev + 1, 5));
   };
 
   // Move to previous step
@@ -280,16 +291,24 @@ const AddNewGuard: React.FC = () => {
 
   // Form submission
   const onSubmit = async (data: GuardFormData) => {
-    console.log("📝 Form data being submitted:", {
+    console.log("🔍 Form data being submitted:", {
       personalDetails: {
         name: `${data.personalDetails.firstName} ${data.personalDetails.lastName}`,
         email: data.personalDetails.email,
         phone: data.contactDetails.mobileNumber,
-        guardType: data.employmentDetails.guardType,
+        guardTypeId: data.employmentDetails.guardType, // 🔥 UPDATED: Log guard type ID
         status: data.employmentDetails.status,
         hasPhoto: !!data.personalDetails.profilePhoto,
         height: `${data.personalDetails.height} ${data.personalDetails.heightUnit}`,
         bloodGroup: data.personalDetails.bloodGroup,
+      },
+      employment: {
+        guardType: data.employmentDetails.guardType,
+        psaraStatus: data.employmentDetails.psaraCertificationStatus,
+        licenseNumber: data.employmentDetails.licenseNumber,
+        dateOfIssue: data.employmentDetails.dateOfIssue,
+        validUntil: data.employmentDetails.validUntil,
+        validIn: data.employmentDetails.validIn,
       },
       selectedDocuments: data.documentVerification.documents.filter((doc) => doc.isSelected).length,
       agencyId: data.employmentDetails.companyId,
@@ -309,11 +328,10 @@ const AddNewGuard: React.FC = () => {
       setSuccessOpen(true);
       console.log("🎉 Guard created successfully!");
 
-      // Force refresh guards list and redirect
       forceRefreshGuards()
         .then(() => {
           console.log("✅ Guards list refreshed");
-          setTimeout(() => navigate("/guards"), 2000); // Delay for user to see success message
+          setTimeout(() => navigate("/guards"), 2000);
         })
         .catch((error) => {
           console.error("❌ Failed to refresh guards list:", error);
@@ -337,11 +355,6 @@ const AddNewGuard: React.FC = () => {
     localStorage.setItem("guardDraft", JSON.stringify(currentData));
     console.log("💾 Draft saved to localStorage");
     alert("Draft saved successfully!");
-  };
-
-  // Cancel save progress dialog
-  const handleCancelSaveProgress = () => {
-    setSaveProgressOpen(false);
   };
 
   // Close success snackbar and redirect
@@ -380,11 +393,27 @@ const AddNewGuard: React.FC = () => {
         </Alert>
       )}
 
+      {/* 🔥 NEW: Guard Types Loading Error */}
+      {guardTypesError && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Failed to load guard types. Using fallback options. Error: {guardTypesError.message}
+        </Alert>
+      )}
+
       {/* Header */}
       <div className="flex flex-row justify-between">
         <div className="flex flex-row items-center text-xl gap-2 font-semibold mb-2">
           <ArrowBackIcon className="cursor-pointer" onClick={() => navigate("/guards")} />
           <h2>Add New Guard</h2>
+          {/* 🔥 NEW: Show loading indicator for guard types */}
+          {isLoadingGuardTypes && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CircularProgress size={16} />
+              <Typography variant="body2" sx={{ color: "#707070" }}>
+                Loading guard types...
+              </Typography>
+            </Box>
+          )}
         </div>
 
         {/* Action Buttons */}
@@ -714,55 +743,6 @@ const AddNewGuard: React.FC = () => {
           </Box>
         </form>
       </Box>
-
-      {/* Save Progress Dialog */}
-      <Dialog open={saveProgressOpen} onClose={handleCancelSaveProgress} maxWidth="sm" fullWidth>
-        <DialogContent>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              p: 3,
-              textAlign: "center",
-            }}
-          >
-            <Typography variant="h6" sx={{ mb: 2, color: "#707070" }}>
-              Your progress has been saved.
-            </Typography>
-            <Typography sx={{ mb: 3, color: "#707070" }}>Do you want to continue to the next step?</Typography>
-            <Box sx={{ display: "flex", gap: 2 }}>
-              <Button
-                variant="contained"
-                onClick={handleSaveProgressConfirm}
-                sx={{
-                  backgroundColor: "#2A77D5",
-                  color: "#FFFFFF",
-                  "&:hover": {
-                    backgroundColor: "#1E5AA3",
-                  },
-                }}
-              >
-                Yes
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={handleCancelSaveProgress}
-                sx={{
-                  color: "#2A77D5",
-                  borderColor: "#2A77D5",
-                  "&:hover": {
-                    borderColor: "#1E5AA3",
-                    backgroundColor: "rgba(42, 119, 213, 0.04)",
-                  },
-                }}
-              >
-                No
-              </Button>
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

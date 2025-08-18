@@ -31,8 +31,6 @@ export default function ClientAreaOfficers() {
   }
   const { data, isLoading, error } = useGetClientAreaOfficers(clientId!);
   const apiAreaOfficers = (data && (data as any).data.areaOfficers) || [];
-  const totalCount = (data && (data as any).total) || apiAreaOfficers.length;
-  const totalPages = Math.ceil(totalCount / pageSize);
 
   const areaOfficers = apiAreaOfficers.map((officer: any) => ({
     id: officer.guardId,
@@ -44,10 +42,20 @@ export default function ClientAreaOfficers() {
     clientSites: officer.clientSites,
     guardCount: officer.guardCount,
     upAndUpAsliTrust: 4 + Math.random(),
+    siteIds: officer.siteId ? officer.siteId.split(", ").map((id: string) => id.trim()) : [],
   }));
 
+  // Apply site filtering based on siteId
+  const filteredAreaOfficers =
+    selectedSite === "ALL SITES"
+      ? areaOfficers
+      : areaOfficers.filter((officer: any) => {
+          return officer.siteIds && officer.siteIds.includes(selectedSite);
+        });
+
   const pageNumbers = [];
-  for (let i = 0; i < totalPages; i++) {
+  const adjustedTotalPages = Math.ceil(filteredAreaOfficers.length / pageSize);
+  for (let i = 0; i < adjustedTotalPages; i++) {
     pageNumbers.push(i + 1);
   }
 
@@ -56,7 +64,7 @@ export default function ClientAreaOfficers() {
   };
 
   const handleNextPage = () => {
-    setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1));
+    setCurrentPage((prev) => Math.min(adjustedTotalPages - 1, prev + 1));
   };
 
   const handlePageClick = (page: number) => {
@@ -77,7 +85,7 @@ export default function ClientAreaOfficers() {
         <div className="flex flex-row gap-4">
           <div className="flex flex-row items-center text-lg gap-2 font-semibold">
             <h2 className="">AREA OFFICERS</h2>
-            <p className="text-[#707070]">{totalCount}</p>
+            <p className="text-[#707070]">{filteredAreaOfficers.length}</p>
           </div>
 
           <Button variant="contained" size="small" disabled={isLoadingSites}>
@@ -104,7 +112,7 @@ export default function ClientAreaOfficers() {
 
       <Box sx={{ display: "inline-block" }}>
         <DataGrid
-          rows={areaOfficers}
+          rows={filteredAreaOfficers}
           columns={AreaOfficerColumns}
           hideFooter={true}
           disableRowSelectionOnClick
@@ -196,7 +204,7 @@ export default function ClientAreaOfficers() {
             ))}
           </div>
 
-          <IconButton onClick={handleNextPage} disabled={currentPage >= totalPages - 1} size="small">
+          <IconButton onClick={handleNextPage} disabled={currentPage >= adjustedTotalPages - 1} size="small">
             <KeyboardArrowRightIcon />
           </IconButton>
         </div>

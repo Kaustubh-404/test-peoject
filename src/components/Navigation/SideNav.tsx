@@ -4,7 +4,7 @@ import HandshakeOutlinedIcon from "@mui/icons-material/HandshakeOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import SupervisorAccountOutlinedIcon from "@mui/icons-material/SupervisorAccountOutlined";
-import { AppBar, Avatar, IconButton, InputBase, Paper, Typography } from "@mui/material";
+import { AppBar, Autocomplete, Avatar, IconButton, Paper, TextField, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import CssBaseline from "@mui/material/CssBaseline";
 import Divider from "@mui/material/Divider";
@@ -15,7 +15,29 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
 import Toolbar from "@mui/material/Toolbar";
+import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useApi } from "../../apis/base";
+
+interface SearchResult {
+  id: string;
+  type: "client" | "site" | "guard" | "area_officer";
+  title: string;
+  subtitle: string;
+  description: string;
+  score: number;
+  metadata: any;
+}
+
+interface SearchResponse {
+  success: boolean;
+  data: {
+    results: SearchResult[];
+    total: number;
+    limit: number;
+    query: string;
+  };
+}
 
 const drawerWidth = "7rem";
 
@@ -44,6 +66,74 @@ const sideNavItems: SdieNavItem[] = [
 export default function SideNav({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { get } = useApi;
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    useCallback(
+      (query: string) => {
+        const timeoutId = setTimeout(async () => {
+          if (query.trim().length < 2) {
+            setSearchResults([]);
+            setIsSearching(false);
+            return;
+          }
+
+          try {
+            setIsSearching(true);
+            const response: SearchResponse = await get(`/duties/search?q=${encodeURIComponent(query)}&limit=10`);
+            if (response.success) {
+              setSearchResults(response.data.results);
+            }
+          } catch (error) {
+            console.error("Search error:", error);
+            setSearchResults([]);
+          } finally {
+            setIsSearching(false);
+          }
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+      },
+      [get]
+    ),
+    [get]
+  );
+
+  useEffect(() => {
+    const cleanup = debouncedSearch(searchQuery);
+    return cleanup;
+  }, [searchQuery, debouncedSearch]);
+
+  const handleSearchSelect = (result: SearchResult | null) => {
+    if (!result) return;
+
+    switch (result.type) {
+      case "client":
+        navigate(`/clients/${result.id}/performance/guards-defaults`);
+        break;
+      case "site":
+        if (result.metadata.clientId) {
+          navigate(`/clients/${result.metadata.clientId}/sites/${result.id}`);
+        }
+        break;
+      case "guard":
+        navigate(`/guards/${result.id}`);
+        break;
+      case "area_officer":
+        navigate(`/officers/${result.id}`);
+        break;
+      default:
+        break;
+    }
+
+    setSearchQuery("");
+    setSearchResults([]);
+  };
 
   return (
     <Box
@@ -65,36 +155,68 @@ export default function SideNav({ children }: { children: React.ReactNode }) {
         }}
       >
         <Toolbar>
-          <Paper
-            component="form"
-            sx={{
-              p: "2px 4px",
-              display: "flex",
-              alignItems: "center",
-              width: 400,
-              height: 40,
-              borderRadius: "0.2rem",
-              bgcolor: "#F0F0F0A3",
-              ml: "auto",
-              border: "1px solid #C2DBFA",
-              boxShadow: 0,
+          <Autocomplete
+            freeSolo
+            options={searchResults}
+            getOptionLabel={(option) => (typeof option === "string" ? option : option.title)}
+            renderOption={(props, option) => (
+              <Box component="li" {...props} key={option.id}>
+                <Box sx={{ display: "flex", flexDirection: "column", width: "100%" }}>
+                  <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                    {option.title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {option.description}
+                  </Typography>
+                </Box>
+              </Box>
+            )}
+            inputValue={searchQuery}
+            onInputChange={(_event, newInputValue) => {
+              setSearchQuery(newInputValue);
             }}
-          >
-            <IconButton type="button" sx={{ p: "10px", color: "#2A77D5" }} aria-label="search">
-              <SearchIcon />
-            </IconButton>
-            <InputBase
-              sx={{
-                ml: 1,
-                flex: 1,
-                typography: {
-                  fontSize: "0.8rem",
-                },
-              }}
-              placeholder="Type Name or ID of Client, Site, or Person to Search..."
-              inputProps={{ "aria-label": "search" }}
-            />
-          </Paper>
+            onChange={(_event, value) => {
+              if (typeof value === "object" && value !== null) {
+                handleSearchSelect(value);
+              }
+            }}
+            loading={isSearching}
+            renderInput={(params) => (
+              <Paper
+                sx={{
+                  p: "2px 4px",
+                  display: "flex",
+                  alignItems: "center",
+                  width: 400,
+                  height: 40,
+                  borderRadius: "0.2rem",
+                  bgcolor: "#F0F0F0A3",
+                  ml: "auto",
+                  border: "1px solid #C2DBFA",
+                  boxShadow: 0,
+                }}
+              >
+                <IconButton type="button" sx={{ p: "10px", color: "#2A77D5" }} aria-label="search">
+                  <SearchIcon />
+                </IconButton>
+                <TextField
+                  {...params}
+                  variant="standard"
+                  placeholder="Type Name or ID of Client, Site, or Person to Search..."
+                  InputProps={{
+                    ...params.InputProps,
+                    disableUnderline: true,
+                    sx: {
+                      ml: 1,
+                      flex: 1,
+                      fontSize: "0.8rem",
+                    },
+                  }}
+                />
+              </Paper>
+            )}
+            sx={{ width: 400, ml: "auto" }}
+          />
         </Toolbar>
       </AppBar>
       <Box component="nav" sx={{ width: drawerWidth, flexShrink: 0 }}>

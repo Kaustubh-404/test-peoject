@@ -1,12 +1,14 @@
+import {
+  useGetAlertnessDefaults,
+  useGetAttendanceCount,
+  useGetGeofenceActivity,
+  useGetLateCount,
+  useGetUniformDefaults,
+} from "@modules/clients/apis/hooks/useGetClientGuardDefaults";
 import { Box } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import React, { useMemo } from "react";
 import { useParams } from "react-router-dom";
-import { useGetAlertnessDefaults } from "../apis/hooks/useGetAlertnessDefaults";
-import { useGetAttendanceCount } from "../apis/hooks/useGetAttendanceCount";
-import { useGetGeofenceActivity } from "../apis/hooks/useGetGeofenceActivity";
-import { useGetLateCount } from "../apis/hooks/useGetLateCount";
-import { useGetUniformDefaults } from "../apis/hooks/useGetUniformDefaults";
 import {
   AbsentTableColumns,
   AlertnessTableColumns,
@@ -33,6 +35,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   onDateSelect,
 }) => {
   const { clientId } = useParams();
+  const { selectedSite } = useClientContext();
 
   // Calculate date range based on selected view
   const dateRange = useMemo(() => {
@@ -51,8 +54,14 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     const countMap = new Map<string, number>();
 
     if (selectedMetric === "absent" && attendanceData?.data?.topAbsentGuards) {
-      attendanceData.data.topAbsentGuards.forEach((guard) => {
-        guard.absentDuties.forEach((duty) => {
+      attendanceData.data.topAbsentGuards.forEach((guard: any) => {
+        // Filter by site if not "ALL SITES"
+        if (selectedSite !== "ALL SITES") {
+          const guardSiteId = guard.siteId; // Assuming the guard has siteId
+          if (guardSiteId !== selectedSite) return;
+        }
+
+        guard.absentDuties.forEach((duty: any) => {
           const dutyDate = new Date(duty.dutyDate).toISOString().split("T")[0];
           const currentCount = countMap.get(dutyDate) || 0;
           countMap.set(dutyDate, currentCount + 1);
@@ -61,8 +70,14 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     }
 
     if (selectedMetric === "uniform" && uniformData?.data?.sitesWithDefaults) {
-      uniformData.data.sitesWithDefaults.forEach((site) => {
-        site.defaultsByDate.forEach((dayData) => {
+      let sitesWithDefaults = uniformData.data.sitesWithDefaults;
+      // Filter by site if not "ALL SITES"
+      if (selectedSite !== "ALL SITES") {
+        sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+      }
+
+      sitesWithDefaults.forEach((site: any) => {
+        site.defaultsByDate.forEach((dayData: any) => {
           const currentCount = countMap.get(dayData.date) || 0;
           countMap.set(dayData.date, currentCount + dayData.defaultCount);
         });
@@ -70,8 +85,14 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     }
 
     if (selectedMetric === "alertness" && alertnessData?.data?.sitesWithDefaults) {
-      alertnessData.data.sitesWithDefaults.forEach((site) => {
-        site.defaultsByDate.forEach((dayData) => {
+      let sitesWithDefaults = alertnessData.data.sitesWithDefaults;
+      // Filter by site if not "ALL SITES"
+      if (selectedSite !== "ALL SITES") {
+        sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+      }
+
+      sitesWithDefaults.forEach((site: any) => {
+        site.defaultsByDate.forEach((dayData: any) => {
           const currentCount = countMap.get(dayData.date) || 0;
           countMap.set(dayData.date, currentCount + dayData.defaultCount);
         });
@@ -79,28 +100,50 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
     }
 
     if (selectedMetric === "late" && lateData?.data?.lateGuardsByDate) {
-      lateData.data.lateGuardsByDate.forEach((dayData) => {
+      let lateGuardsByDate = lateData.data.lateGuardsByDate;
+      // Filter by site if not "ALL SITES"
+      if (selectedSite !== "ALL SITES") {
+        lateGuardsByDate = lateGuardsByDate.filter((dayData: any) => dayData.siteId === selectedSite);
+      }
+
+      lateGuardsByDate.forEach((dayData: any) => {
         const currentCount = countMap.get(dayData.date) || 0;
         countMap.set(dayData.date, currentCount + dayData.guardCount);
       });
     }
 
-    if (selectedMetric === "geofence" && geofenceData?.data?.guardsWithGeofenceActivity) {
-      geofenceData.data.guardsWithGeofenceActivity.forEach((guard) => {
-        const currentCount = countMap.get(guard.date) || 0;
-        countMap.set(guard.date, currentCount + guard.sessionCount);
+    if (selectedMetric === "geofence" && geofenceData?.data?.sitesWithGeofenceActivity) {
+      let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
+      // Filter by site if not "ALL SITES"
+      if (selectedSite !== "ALL SITES") {
+        sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
+          (siteActivity: any) => siteActivity.siteId === selectedSite
+        );
+      }
+
+      sitesWithGeofenceActivity.forEach((siteActivity: any) => {
+        const currentCount = countMap.get(siteActivity.date) || 0;
+        countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
       });
     }
 
-    if (selectedMetric === "patrol" && geofenceData?.data?.guardsWithGeofenceActivity) {
-      geofenceData.data.guardsWithGeofenceActivity.forEach((guard) => {
-        const currentCount = countMap.get(guard.date) || 0;
-        countMap.set(guard.date, currentCount + guard.sessionCount);
+    if (selectedMetric === "patrol" && geofenceData?.data?.sitesWithGeofenceActivity) {
+      let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
+      // Filter by site if not "ALL SITES"
+      if (selectedSite !== "ALL SITES") {
+        sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
+          (siteActivity: any) => siteActivity.siteId === selectedSite
+        );
+      }
+
+      sitesWithGeofenceActivity.forEach((siteActivity: any) => {
+        const currentCount = countMap.get(siteActivity.date) || 0;
+        countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
       });
     }
 
     return countMap;
-  }, [selectedMetric, attendanceData, uniformData, alertnessData, lateData, geofenceData]);
+  }, [selectedMetric, attendanceData, uniformData, alertnessData, lateData, geofenceData, selectedSite]);
 
   const getWeekDays = () => {
     const days = [];
@@ -244,7 +287,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 
 const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
   const { clientId } = useParams();
-  const { selectedView, currentDate } = useClientContext();
+  const { selectedView, currentDate, selectedSite } = useClientContext();
 
   const dateRange = useMemo(() => {
     return getDateRangeForView(selectedView, currentDate);
@@ -285,7 +328,12 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
       return [];
     }
 
-    const siteBreakdown = attendanceCountData.data.siteBreakdown;
+    let siteBreakdown = attendanceCountData.data.siteBreakdown;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      siteBreakdown = siteBreakdown.filter((site: any) => site.siteId === selectedSite);
+    }
 
     const absentSites = siteBreakdown
       .filter((site: any) => site.absentCount > 0)
@@ -299,14 +347,19 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
       }));
 
     return absentSites;
-  }, [attendanceCountData]);
+  }, [attendanceCountData, selectedSite]);
 
   const uniformGuardsData = useMemo(() => {
     if (!uniformData?.data?.sitesWithDefaults) {
       return [];
     }
 
-    const sitesWithDefaults = uniformData.data.sitesWithDefaults;
+    let sitesWithDefaults = uniformData.data.sitesWithDefaults;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+    }
 
     const uniformSites = sitesWithDefaults
       .filter((site: any) => site.totalDefaults > 0)
@@ -331,14 +384,19 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
       });
 
     return uniformSites;
-  }, [uniformData]);
+  }, [uniformData, selectedSite]);
 
   const alertnessGuardsData = useMemo(() => {
     if (!alertnessData?.data?.sitesWithDefaults) {
       return [];
     }
 
-    const sitesWithDefaults = alertnessData.data.sitesWithDefaults;
+    let sitesWithDefaults = alertnessData.data.sitesWithDefaults;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+    }
 
     const alertnessSites = sitesWithDefaults
       .filter((site: any) => site.totalDefaults > 0)
@@ -363,43 +421,44 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
       });
 
     return alertnessSites;
-  }, [alertnessData]);
+  }, [alertnessData, selectedSite]);
 
   const lateGuardsData = useMemo(() => {
     if (!lateData?.data?.lateGuardsByDate) {
       return [];
     }
 
-    const lateGuardsByDate = lateData.data.lateGuardsByDate;
+    let lateGuardsByDate = lateData.data.lateGuardsByDate;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      lateGuardsByDate = lateGuardsByDate.filter((dayData: any) => dayData.siteId === selectedSite);
+    }
 
     // Group by site and aggregate data
     const siteMap = new Map();
-    lateGuardsByDate.forEach((dayData) => {
+    lateGuardsByDate.forEach((dayData: any) => {
       const { siteId, siteName, guardCount, guards } = dayData;
-
       if (siteMap.has(siteId)) {
-        const existing = siteMap.get(siteId);
+        const existing: any = siteMap.get(siteId);
         existing.totalIncidents += guardCount;
-        existing.totalLateMinutes += guards.reduce((sum, guard) => sum + guard.lateMinutes, 0);
-        // Track unique guards
-        guards.forEach((guard) => existing.uniqueGuards.add(guard.guardId));
+        existing.totalLateMinutes += guards.reduce((sum: any, guard: any) => sum + guard.lateMinutes, 0);
+        guards.forEach((guard: any) => existing.uniqueGuards.add(guard.guardId));
       } else {
-        const uniqueGuards = new Set();
-        guards.forEach((guard) => uniqueGuards.add(guard.guardId));
-
+        const uniqueGuards = new Set<any>();
+        guards.forEach((guard: any) => uniqueGuards.add(guard.guardId));
         siteMap.set(siteId, {
           siteId,
           siteName,
           totalIncidents: guardCount,
-          totalLateMinutes: guards.reduce((sum, guard) => sum + guard.lateMinutes, 0),
+          totalLateMinutes: guards.reduce((sum: any, guard: any) => sum + guard.lateMinutes, 0),
           uniqueGuards,
         });
       }
     });
-
     const lateSites = Array.from(siteMap.values())
-      .filter((site) => site.totalIncidents > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalIncidents > 0)
+      .map((site: any, index: number) => ({
         id: index,
         siteId: site.siteId,
         siteName: site.siteName,
@@ -407,93 +466,107 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
         totalIncidents: site.totalIncidents,
         avgLateMinutes: Math.round(site.totalLateMinutes / site.totalIncidents),
       }));
-
     return lateSites;
-  }, [lateData]);
+  }, [lateData, selectedSite]);
 
   const geofenceGuardsData = useMemo(() => {
-    if (!geofenceData?.data?.guardsWithGeofenceActivity) {
-      return [];
+    if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
+    let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
+        (siteActivity: any) => siteActivity.siteId === selectedSite
+      );
     }
 
-    const guardsWithGeofenceActivity = geofenceData.data.guardsWithGeofenceActivity;
-
-    // Group by site and aggregate data
     const siteMap = new Map();
-    guardsWithGeofenceActivity.forEach((guard) => {
-      const { siteName, sessionCount, sessions } = guard;
-
-      if (siteMap.has(siteName)) {
-        const existing = siteMap.get(siteName);
+    sitesWithGeofenceActivity.forEach((siteActivity: any) => {
+      const { siteId, siteName, sessionCount, guards } = siteActivity;
+      if (siteMap.has(siteId)) {
+        const existing: any = siteMap.get(siteId);
         existing.totalSessions += sessionCount;
-        existing.guardCount += 1;
-        existing.totalDuration += sessions.reduce((sum, session) => {
-          const duration = parseInt(session.duration.replace(" Min", "")) || 0;
-          return sum + duration;
+        existing.guardCount += guards.length;
+        existing.totalDuration += guards.reduce((sum: any, guard: any) => {
+          return (
+            sum +
+            guard.sessions.reduce((sessionSum: any, session: any) => {
+              const duration = parseInt(session.duration.replace(" Min", "")) || 0;
+              return sessionSum + duration;
+            }, 0)
+          );
         }, 0);
       } else {
-        siteMap.set(siteName, {
+        const totalDuration = guards.reduce((sum: any, guard: any) => {
+          return (
+            sum +
+            guard.sessions.reduce((sessionSum: any, session: any) => {
+              const duration = parseInt(session.duration.replace(" Min", "")) || 0;
+              return sessionSum + duration;
+            }, 0)
+          );
+        }, 0);
+        siteMap.set(siteId, {
+          siteId,
           siteName,
           totalSessions: sessionCount,
-          guardCount: 1,
-          totalDuration: sessions.reduce((sum, session) => {
-            const duration = parseInt(session.duration.replace(" Min", "")) || 0;
-            return sum + duration;
-          }, 0),
+          guardCount: guards.length,
+          totalDuration,
         });
       }
     });
-
     const geofenceSites = Array.from(siteMap.values())
-      .filter((site) => site.totalSessions > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalSessions > 0)
+      .map((site: any, index: number) => ({
         id: index,
+        siteId: site.siteId,
         siteName: site.siteName,
         guardCount: site.guardCount,
         totalSessions: site.totalSessions,
         avgDuration: Math.round(site.totalDuration / site.totalSessions),
       }));
-
     return geofenceSites;
-  }, [geofenceData]);
+  }, [geofenceData, selectedSite]);
 
   const patrolGuardsData = useMemo(() => {
-    if (!geofenceData?.data?.guardsWithGeofenceActivity) {
-      return [];
+    if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
+    let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
+
+    // Filter by selected site if not "ALL SITES"
+    if (selectedSite !== "ALL SITES") {
+      sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
+        (siteActivity: any) => siteActivity.siteId === selectedSite
+      );
     }
 
-    const guardsWithGeofenceActivity = geofenceData.data.guardsWithGeofenceActivity;
-
-    // Group by site and aggregate data for patrol (similar to geofence but different metrics)
     const siteMap = new Map();
-    guardsWithGeofenceActivity.forEach((guard) => {
-      const { siteName, sessionCount } = guard;
-
-      if (siteMap.has(siteName)) {
-        const existing = siteMap.get(siteName);
+    sitesWithGeofenceActivity.forEach((siteActivity: any) => {
+      const { siteId, siteName, sessionCount, guards } = siteActivity;
+      if (siteMap.has(siteId)) {
+        const existing: any = siteMap.get(siteId);
         existing.totalPatrols += sessionCount;
-        existing.guardCount += 1;
+        existing.guardCount += guards.length;
       } else {
-        siteMap.set(siteName, {
+        siteMap.set(siteId, {
+          siteId,
           siteName,
           totalPatrols: sessionCount,
-          guardCount: 1,
+          guardCount: guards.length,
         });
       }
     });
-
     const patrolSites = Array.from(siteMap.values())
-      .filter((site) => site.totalPatrols > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalPatrols > 0)
+      .map((site: any, index: number) => ({
         id: index,
+        siteId: site.siteId,
         siteName: site.siteName,
         guardCount: site.guardCount,
         totalPatrols: site.totalPatrols,
         avgPatrolsPerGuard: Math.round(site.totalPatrols / site.guardCount),
       }));
-
     return patrolSites;
-  }, [geofenceData]);
+  }, [geofenceData, selectedSite]);
 
   const getTableData = () => {
     switch (selectedMetric) {

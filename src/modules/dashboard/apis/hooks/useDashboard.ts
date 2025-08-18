@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { getClientTasks as getTasks } from "../../../clients/apis/services/tasks";
 import {
   getAreaOfficers,
   getDashboardOverview,
@@ -139,6 +140,22 @@ export const useIncidentReports = (params: {
   return useQuery({
     queryKey: ["incidentReports", params],
     queryFn: () => getIncidentReports(params),
+    enabled: !!params.opAgencyId,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes for live dashboard
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useAreaOfficerTasks = (params: { opAgencyId: string; page?: number; limit?: number }) => {
+  return useQuery({
+    queryKey: ["areaOfficerTasks", params],
+    queryFn: () =>
+      getTasks({
+        agencyId: params.opAgencyId,
+        page: params.page,
+        limit: params.limit,
+      }),
     enabled: !!params.opAgencyId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes for live dashboard

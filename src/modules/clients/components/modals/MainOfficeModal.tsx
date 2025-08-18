@@ -325,7 +325,7 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
           </div>
           {/* Emergency Contact Section */}
           <div className="mt-4 flex flex-col gap-2">
-            <span className="text-xs text-[#707070]">EMERGENCY CONTACT</span>
+            <span className="text-xs text-[#707070]">CONTACT PERSON 2</span>
             <Divider />
             <div className="grid grid-cols-3 gap-x-4 gap-y-2 mt-2">
               <LabeledInput

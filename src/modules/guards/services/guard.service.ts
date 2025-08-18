@@ -1,5 +1,5 @@
-// File: src/services/guard.service.ts - Updated to handle no file uploads
-import { guardsApi } from "../../../config/axios";
+// File: src/services/guard.service.ts - Updated with missing API fields
+import { guardsApi } from "../../../config/axios"; // 🔥 NEW: Import authApi for guard types
 import {
   AddressType,
   ContactType,
@@ -179,6 +179,7 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
       documents.push({
         type: DocumentType.ID_CARD, // Using ID_CARD for all documents as requested
         documentNumber: `${doc.type.toUpperCase()}_VERIFIED_${Date.now()}`,
+        documentUrl: "", // Empty since no file uploads
         issuedBy: "Government Authority",
         issuedDate: dateOfBirth,
         expiryDate: "2099-12-31",
@@ -192,6 +193,7 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     documents.push({
       type: DocumentType.LICENSE,
       documentNumber: employmentDetails.licenseNumber.trim(),
+      documentUrl: "", // Empty since no file uploads
       issuedBy: employmentDetails.validIn || "Licensing Authority",
       issuedDate: employmentDetails.dateOfIssue || dateOfBirth,
       expiryDate: employmentDetails.validUntil || "2099-12-31",
@@ -222,10 +224,16 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     OTHER: GuardStatus.OTHER,
   };
 
-  // Get status from employment details, default to PENDING
+  // Map PSARA status from form to API enum
+  const psaraStatusMapping: { [key: string]: string } = {
+    Pending: "PENDING",
+    Completed: "COMPLETED",
+  };
+
+  // Get status from employment details, default to ACTIVE
   const guardStatus = employmentDetails.status
-    ? guardStatusMapping[employmentDetails.status] || GuardStatus.PENDING
-    : GuardStatus.PENDING;
+    ? guardStatusMapping[employmentDetails.status] || GuardStatus.ACTIVE
+    : GuardStatus.ACTIVE;
 
   // Handle profile photo with proper filename
   let processedProfilePhoto: File | undefined = undefined;
@@ -253,12 +261,23 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
   let heightInCm: number | undefined;
   if (personalDetails.height && personalDetails.heightUnit) {
     const heightValue = parseFloat(personalDetails.height);
-    if (personalDetails.heightUnit === "inch") {
-      heightInCm = Math.round(heightValue * 2.54); // Convert inches to cm
+    if (personalDetails.heightUnit === "ft") {
+      heightInCm = Math.round(heightValue * 30.48); // Convert feet to cm
     } else {
       heightInCm = Math.round(heightValue); // Already in cm
     }
   }
+
+  // 🔥 NEW: Build employment object as required by API
+  const employment = {
+    licenseNumber: employmentDetails.licenseNumber?.trim() || "",
+    dateOfIssue: employmentDetails.dateOfIssue || "",
+    psaraStatus: employmentDetails.psaraCertificationStatus
+      ? psaraStatusMapping[employmentDetails.psaraCertificationStatus] || "PENDING"
+      : "PENDING",
+    validUntil: employmentDetails.validUntil || "",
+    validIn: employmentDetails.validIn?.trim() || "",
+  };
 
   // Build the API request object
   const apiRequest: CreateGuardRequest = {
@@ -269,6 +288,16 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     phoneNumber: formattedPhoneNumber,
     status: guardStatus,
     userType: "GUARD",
+
+    // 🔥 NEW: Add guardType field as required by API
+    guardType: employmentDetails.guardType?.trim() || "",
+
+    // 🔥 NEW: Add employment object as required by API
+    employment,
+
+    // 🔥 NEW: Add files array (empty since no file uploads but required by API)
+    files: [],
+
     // Optional fields
     ...(personalDetails.middleName?.trim() && { middleName: personalDetails.middleName.trim() }),
     ...(personalDetails.nationality?.trim() && { nationality: personalDetails.nationality.trim() }),
@@ -289,7 +318,6 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     ...(emergencyContacts.length > 0 && { emergencyContacts }),
     ...(familyMembers.length > 0 && { familyMembers }),
     ...(documents.length > 0 && { documents }),
-    // NO FILES ARRAY - documents are verified but not uploaded
   };
 
   return apiRequest;
@@ -308,6 +336,11 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
   formData.append("status", apiRequest.status);
   formData.append("userType", apiRequest.userType);
 
+  // 🔥 NEW: Add guardType field
+  if (apiRequest.guardType) {
+    formData.append("guardType", apiRequest.guardType);
+  }
+
   // Add optional fields
   if (apiRequest.middleName) formData.append("middleName", apiRequest.middleName);
   if (apiRequest.nationality) formData.append("nationality", apiRequest.nationality);
@@ -320,7 +353,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
 
   // Handle photo upload with enhanced filename handling
   if (apiRequest.photo) {
-    console.log("🔍 Processing photo for upload:", {
+    console.log("📷 Processing photo for upload:", {
       originalName: apiRequest.photo.name,
       size: apiRequest.photo.size,
       type: apiRequest.photo.type,
@@ -396,15 +429,64 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
   if (apiRequest.familyMembers) formData.append("familyMembers", JSON.stringify(apiRequest.familyMembers));
   if (apiRequest.documents) formData.append("documents", JSON.stringify(apiRequest.documents));
 
-  // NO DOCUMENT FILES - only metadata is sent
-  // The API will create document records based on the documents array without requiring file uploads
+  // 🔥 NEW: Add employment object as JSON
+  if (apiRequest.employment) {
+    formData.append("employment", JSON.stringify(apiRequest.employment));
+  }
+
+  // 🔥 REMOVED: Don't add files array - backend doesn't expect it
+  // The API documentation shows 'files' as required, but validation rejects it
+  // Since we're not uploading any document files, we'll omit this field entirely
 
   // Final verification log
   console.log("🎯 FormData creation complete. Total entries:", Array.from(formData.entries()).length);
   console.log("📋 Documents metadata only (no files):", apiRequest.documents?.length || 0, "documents");
+  console.log("🔧 Employment object added:", !!apiRequest.employment);
+  console.log("📁 Files array omitted (not expected by backend validation)");
 
   return formData;
 };
+
+// 🔥 NEW: Guard Types API Service
+export const guardTypesService = {
+  // Get all guard types for an agency
+  getGuardTypes: async (agencyId: string): Promise<GuardType[]> => {
+    try {
+      console.log("🔍 Fetching guard types for agency:", agencyId);
+
+      const response = await guardsApi.get(`/api/v2/settings/guard-types/${agencyId}`);
+
+      console.log("✅ Guard types API response:", response.data);
+
+      // 🔥 FIX: Extract data from the nested response structure
+      const guardTypes = response.data?.data || response.data || [];
+
+      console.log("✅ Guard types extracted:", guardTypes);
+      return guardTypes as GuardType[];
+    } catch (error: any) {
+      console.error("❌ Failed to fetch guard types:", error);
+
+      if (error.response?.status === 401) {
+        throw new Error("Unauthorized. Please login again.");
+      }
+      if (error.response?.status === 404) {
+        throw new Error("Guard types not found for this agency.");
+      }
+
+      throw new Error("Failed to fetch guard types.");
+    }
+  },
+};
+
+// 🔥 UPDATED: GuardType interface to match actual API response
+interface GuardType {
+  id: string;
+  typeName: string; // 🔥 FIX: Changed from 'name' to 'typeName'
+  agencyId: string;
+  createdAt: string;
+  updatedAt: string;
+  // Note: isActive field doesn't exist in API response, so we'll treat all as active
+}
 
 export const guardService = {
   // Create a new guard using multipart/form-data
@@ -442,11 +524,14 @@ export const guardService = {
       console.log("🔥 Key API fields:", {
         userType: apiRequest.userType,
         status: apiRequest.status,
+        guardType: apiRequest.guardType, // NEW
+        employment: apiRequest.employment, // NEW
         agencyId: agencyId,
         hasPhoto: !!apiRequest.photo,
         photoName: apiRequest.photo?.name,
         documentsCount: apiRequest.documents?.length || 0,
-        noFileUploads: true, // Important flag
+        filesArrayOmitted: true, // NEW - indicating we're not sending files
+        noFileUploads: true,
       });
 
       // Make the API request with multipart/form-data
@@ -564,6 +649,14 @@ export const guardService = {
       errors.push("Permanent address pincode is required");
     }
 
+    // Employment validations - 🔥 NEW: Add guardType validation
+    if (!formData.employmentDetails.companyId?.trim()) {
+      errors.push("Company ID is required");
+    }
+    if (!formData.employmentDetails.guardType?.trim()) {
+      errors.push("Guard type is required");
+    }
+
     // Phone number format validation
     const phoneRegex = /^(\+91[6-9]\d{9}|[6-9]\d{9})$/;
 
@@ -590,14 +683,6 @@ export const guardService = {
       errors.push(
         "All mandatory documents (Aadhaar Card, Birth Certificate, Education Certificate, and PAN Card) must be selected"
       );
-    }
-
-    // Employment details validation
-    if (!formData.employmentDetails.companyId?.trim()) {
-      errors.push("Company ID is required");
-    }
-    if (!formData.employmentDetails.guardType?.trim()) {
-      errors.push("Guard type is required");
     }
 
     return errors;

@@ -9,16 +9,19 @@ type SectionType = "PERFORMANCE" | "PROFILE" | "ASSIGNMENT" | "HISTORY";
 
 interface WindowRendererProps {
   activeSection: SectionType;
+  guardData?: any; // Guard data from parent component
 }
 
 /**
  * Component that renders the appropriate window based on the active section
  * Each window component handles its own data fetching and URL param extraction
  */
-const WindowRenderer: React.FC<WindowRendererProps> = ({ activeSection }) => {
+const WindowRenderer: React.FC<WindowRendererProps> = ({ activeSection, guardData }) => {
   // Log the current section for debugging
   console.log("🖼️ WindowRenderer:", {
     activeSection,
+    guardId: guardData?.id,
+    guardName: guardData?.name,
     timestamp: new Date().toISOString(),
   });
 
@@ -35,7 +38,8 @@ const WindowRenderer: React.FC<WindowRendererProps> = ({ activeSection }) => {
       return <AssignmentWindow />;
 
     case "HISTORY":
-      return <HistoryWindow />;
+      // ✅ Pass guardId to HistoryWindow
+      return <HistoryWindow guardId={guardData?.id} />;
 
     default:
       console.warn("Unknown section type:", activeSection, "defaulting to PERFORMANCE");

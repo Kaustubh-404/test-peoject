@@ -3,7 +3,7 @@ import UnfoldMoreOutlinedIcon from "@mui/icons-material/UnfoldMoreOutlined";
 import { Avatar, Box, Button } from "@mui/material";
 import { DataGrid, type GridColDef } from "@mui/x-data-grid";
 import { ArrowDown, Clock, HardHat, MapPin, Shirt } from "lucide-react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer } from "recharts";
 import {
   AbsentColumnsTwo,
@@ -13,8 +13,11 @@ import {
 } from "../columns/GuardsDefaultsListViewColumns";
 import { datagridStyle } from "../lib/datagridStyle";
 import GeofenceBreachModal from "./modals/GeofenceBreachReasonModal";
+
 export const AbsentDetails = ({ guardData }: { guardData: GuardAbsentItems }) => {
-  if (guardData?.replacedWith === "") {
+  // if (guardData?.replacedWith === "") {
+  if (true) {
+    console.log("Guard Data:", guardData);
     return (
       <div className="flex flex-col gap-4 p-4 items-center justify-center bg-white border-l border-gray-200 flex-1">
         <span className="text-lg">LIST OF AVAILABLE GUARDS</span>
@@ -108,20 +111,29 @@ export const AbsentDetails = ({ guardData }: { guardData: GuardAbsentItems }) =>
 const MAX_LATE_MINUTES = 60;
 
 export const LateDetails = ({ guardData }: { guardData: GuardLateItems }) => {
-  const displayDutyTime = guardData?.dutyTime || "08:00 AM";
-  const displayLateBy = guardData?.lateBy || "10 MIN";
+  const displayDutyTime = guardData?.scheduledStartTime;
+  const checkInTime = guardData?.acutalCheckInTime
+    ? new Date(guardData.acutalCheckInTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })
+    : "-";
+  const displayLateBy = guardData?.lateMinutes;
 
-  const calculatePercentage = (lateTime: string): number => {
-    const match = lateTime.match(/(\d+)/);
-    if (match) {
-      const minutes = parseInt(match[1]);
-      return Math.min((minutes / MAX_LATE_MINUTES) * 100, 100);
-    }
-    return 25;
+  useEffect(() => {
+    console.log("Guard Data:", guardData);
+  }, [guardData]);
+
+  const calculatePercentage = (lateTime: number): number => {
+    console.log("Display Duty Time:", displayDutyTime);
+    console.log("Display Late By:", displayLateBy);
+    console.log("Late Time:", lateTime);
+    const minutes = lateTime;
+    return Math.min((minutes / MAX_LATE_MINUTES) * 100, 100);
   };
 
   const displayPercentage = calculatePercentage(displayLateBy);
 
+  useEffect(() => {
+    console.log("Display Duty Time:", displayPercentage);
+  }, [displayDutyTime, displayLateBy]);
   const data = [
     { name: "completed", value: displayPercentage },
     { name: "remaining", value: 100 - displayPercentage },
@@ -164,7 +176,7 @@ export const LateDetails = ({ guardData }: { guardData: GuardLateItems }) => {
         <div className="">
           <h3 className="text-sm font-medium text-gray-600 mb-4 tracking-wide ml-4">CHECK IN TIME</h3>
           <div className="bg-white px-4 py-6 rounded-l-lg shadow pr-36">
-            <span className="text-lg text-gray-800">{displayDutyTime}</span>
+            <span className="text-lg text-gray-800">{checkInTime}</span>
           </div>
         </div>
 
@@ -489,12 +501,18 @@ interface GeofenceDetailsProps {
     photo: string;
     dutyTime: string;
     count: number;
+    sessions?: Array<{
+      number: number;
+      entryTime: string;
+      exitTime: string;
+      duration: string;
+      aoAction: string;
+      viewReason?: string;
+    }>;
   };
   violations?: GeofenceViolation[];
   dutyStartTime?: string;
 }
-
-const DUTY_HOURS_GEOFENCE = 8;
 
 const geofenceColumns = [
   {
@@ -559,58 +577,64 @@ const geofenceColumns = [
   },
 ];
 
-export const GeofenceDetails = ({
-  // guardData,
-  violations = [
-    {
-      id: 1,
-      number: 1,
-      entryTime: "08:40 AM",
-      exitTime: "08:58 AM",
-      duration: "18 Min",
-      aoAction: "Approved",
-      status: "approved" as const,
-      viewReason: "View Task",
-    },
-    {
-      id: 2,
-      number: 2,
-      entryTime: "02:24 PM",
-      exitTime: "02:34 PM",
-      duration: "10 Min",
-      aoAction: "Pending",
-      status: "pending" as const,
-      viewReason: "View Task",
-    },
-  ],
-  dutyStartTime = "08:00 AM",
-}: GeofenceDetailsProps) => {
-  const timeToDutyHour = (timeStr: string, startTime: string): number => {
-    const parseTime = (time: string): number => {
-      const [timepart, period] = time.split(" ");
-      const [hours, minutes] = timepart.split(":").map(Number);
+export const GeofenceDetails = ({ guardData, violations = [] }: GeofenceDetailsProps) => {
+  // Use session data from guardData if available, otherwise fall back to violations prop
+  const sessionData = guardData?.sessions || violations;
 
-      let totalHours = hours;
-      if (period === "PM" && hours !== 12) totalHours += 12;
-      if (period === "AM" && hours === 12) totalHours = 0;
+  // Convert session data to the expected format if needed
+  const formattedViolations = sessionData.map((session: any, index: number) => ({
+    id: session.id || index + 1,
+    number: session.number || index + 1,
+    entryTime: session.entryTime,
+    exitTime: session.exitTime,
+    duration: session.duration,
+    aoAction: session.aoAction,
+    status:
+      session.aoAction?.toLowerCase() === "approved"
+        ? ("approved" as const)
+        : session.aoAction?.toLowerCase() === "disapproved"
+          ? ("disapproved" as const)
+          : ("pending" as const),
+    viewReason: session.viewReason || "View Task",
+  }));
 
-      return totalHours + minutes / 60;
-    };
-
-    const startHour = parseTime(startTime);
-    const currentHour = parseTime(timeStr);
-
-    let dutyHour = currentHour - startHour;
-
-    if (dutyHour < 0) {
-      dutyHour += 24;
-    }
-
-    return dutyHour % DUTY_HOURS_GEOFENCE;
+  const timeToMinutes = (timeStr: string): number => {
+    // Handle 24-hour format (HH:MM)
+    const [hours, minutes] = timeStr.split(":").map(Number);
+    return hours * 60 + minutes;
   };
 
-  const dutyHourToAngle = (dutyHour: number): number => {
-    return (dutyHour / DUTY_HOURS_GEOFENCE) * 360;
+  const getDutyDurationMinutes = (dutyTime: string): number => {
+    // Parse duty time like "08:00 - 20:00"
+    const [startTime, endTime] = dutyTime.split(" - ");
+    const startMinutes = timeToMinutes(startTime);
+    const endMinutes = timeToMinutes(endTime);
+
+    // Handle overnight shifts
+    if (endMinutes <= startMinutes) {
+      return 24 * 60 - startMinutes + endMinutes;
+    }
+
+    return endMinutes - startMinutes;
+  };
+
+  const getMinutesFromDutyStart = (timeStr: string, dutyTime: string): number => {
+    const [startTime] = dutyTime.split(" - ");
+    const startMinutes = timeToMinutes(startTime);
+    const currentMinutes = timeToMinutes(timeStr);
+
+    let minutesFromStart = currentMinutes - startMinutes;
+
+    // Handle overnight case
+    if (minutesFromStart < 0) {
+      minutesFromStart += 24 * 60;
+    }
+
+    return minutesFromStart;
+  };
+
+  const minutesToAngle = (minutes: number, totalDutyMinutes: number): number => {
+    return (minutes / totalDutyMinutes) * 360;
   };
 
   const angleToPosition = (angle: number, radius: number) => {
@@ -622,17 +646,31 @@ export const GeofenceDetails = ({
   };
 
   const createViolationSegments = () => {
-    return violations.map((violation) => {
-      const entryHour = timeToDutyHour(violation.entryTime, dutyStartTime);
-      const exitHour = timeToDutyHour(violation.exitTime, dutyStartTime);
+    if (!guardData?.dutyTime) return [];
 
-      const startAngle = dutyHourToAngle(entryHour) - 90; // -90 to start from top
-      const endAngle = dutyHourToAngle(exitHour) - 90;
+    const totalDutyMinutes = getDutyDurationMinutes(guardData.dutyTime);
+
+    return formattedViolations.map((session) => {
+      const entryMinutes = getMinutesFromDutyStart(session.entryTime, guardData.dutyTime);
+      const exitMinutes = getMinutesFromDutyStart(session.exitTime, guardData.dutyTime);
+
+      const startAngle = minutesToAngle(entryMinutes, totalDutyMinutes) - 90; // -90 to start from top
+      const endAngle = minutesToAngle(exitMinutes, totalDutyMinutes) - 90;
 
       const radius = 85;
       const strokeWidth = 24;
 
-      const largeArcFlag = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
+      // Calculate arc direction - sessions can span across different times
+      let sweepFlag = 1; // Default to clockwise
+      let largeArcFlag = 0;
+
+      // If exit time is before entry time, it means session spans across day boundary
+      if (exitMinutes < entryMinutes) {
+        largeArcFlag = 1;
+      } else if (Math.abs(endAngle - startAngle) > 180) {
+        largeArcFlag = 1;
+      }
+
       const x1 = 100 + radius * Math.cos((startAngle * Math.PI) / 180);
       const y1 = 100 + radius * Math.sin((startAngle * Math.PI) / 180);
       const x2 = 100 + radius * Math.cos((endAngle * Math.PI) / 180);
@@ -640,12 +678,12 @@ export const GeofenceDetails = ({
 
       return (
         <path
-          key={violation.id}
-          d={`M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`}
+          key={session.id}
+          d={`M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArcFlag} ${sweepFlag} ${x2} ${y2}`}
           stroke="#ef4444"
           strokeWidth={strokeWidth}
           fill="none"
-          strokeLinecap="square"
+          strokeLinecap="round"
         />
       );
     });
@@ -663,8 +701,9 @@ export const GeofenceDetails = ({
 
           <line x1="100" y1="30" x2="100" y2="2" stroke="#374151" strokeWidth="4" strokeLinecap="round" />
 
-          {Array.from({ length: DUTY_HOURS_GEOFENCE }, (_, i) => {
-            const angle = dutyHourToAngle(i);
+          {/* Hour markers - show 12 markers around the circle representing duty time segments */}
+          {Array.from({ length: 12 }, (_, i) => {
+            const angle = i * 30 - 90; // 30 degrees apart, starting from top
             const pos = angleToPosition(angle, 85);
             return (
               <line
@@ -687,7 +726,7 @@ export const GeofenceDetails = ({
         </div>
       </div>
 
-      {violations.length > 0 && (
+      {formattedViolations.length > 0 && (
         <div className="w-full max-w-2xl flex justify-center">
           <Box
             sx={{
@@ -696,7 +735,7 @@ export const GeofenceDetails = ({
             }}
           >
             <DataGrid
-              rows={violations}
+              rows={formattedViolations}
               columns={geofenceColumns}
               hideFooter={true}
               disableRowSelectionOnClick

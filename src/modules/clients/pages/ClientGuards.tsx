@@ -25,10 +25,13 @@ import { DataGrid } from "@mui/x-data-grid";
 import { useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useGetClientGuards } from "../apis/hooks/useGetClientGuards";
+import { useGetClientSites } from "../apis/hooks/useGetClientSites";
 import { GuardColumns, type GuardItem } from "../columns/ClientGuardsColumns";
+import { useClientContext } from "../context/ClientContext";
 
 export default function ClientGuards() {
   const { clientId } = useParams();
+  const { selectedSite, setSelectedSite } = useClientContext();
   const filterButtonRef = useRef<HTMLButtonElement>(null);
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -44,9 +47,11 @@ export default function ClientGuards() {
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const { data: sitesResponse, isLoading: isLoadingSites } = useGetClientSites(clientId || "");
+  const sites = sitesResponse?.data || [];
+
   const { data: guardsResponse, isLoading: isLoadingGuards, error: guardsError } = useGetClientGuards(clientId!);
   const guards = (guardsResponse && (guardsResponse as any).data.guards) || [];
-  const total = (guardsResponse && (guardsResponse as any).data.total) || 0;
 
   const transformedGuards: GuardItem[] = guards.map((guard: any) => ({
     id: guard.guardId,
@@ -66,6 +71,15 @@ export default function ClientGuards() {
 
   const applyFilters = (guards: GuardItem[]) => {
     let result = [...guards];
+
+    // Filter by selected site
+    if (selectedSite !== "ALL SITES") {
+      const selectedSiteData = sites.find((site: any) => site.id === selectedSite);
+      if (selectedSiteData) {
+        result = result.filter((guard) => guard.clientSite === selectedSiteData.siteName);
+      }
+    }
+
     if (selectedGuardTypes.length > 0) result = result.filter((guard) => selectedGuardTypes.includes(guard.type));
     if (selectedClientSites.length > 0)
       result = result.filter((guard) => selectedClientSites.includes(guard.clientSite));
@@ -194,11 +208,25 @@ export default function ClientGuards() {
         <div className="flex flex-row gap-4">
           <div className="flex flex-row items-center text-lg gap-2 font-semibold">
             <h2 className="">GUARDS</h2>
-            <p className="text-[#707070]">{total}</p>
+            <p className="text-[#707070]">{filteredGuards.length}</p>
           </div>
-          <Button variant="contained" size="small">
+          <Button variant="contained" size="small" disabled={isLoadingSites}>
             <HomeWorkOutlinedIcon sx={{ mr: 1 }} />
-            ALL SITES
+            <Select
+              value={selectedSite}
+              onChange={(e) => setSelectedSite(e.target.value)}
+              size="small"
+              sx={{ minWidth: 180, background: "transparent", border: "none" }}
+              disableUnderline
+              displayEmpty
+            >
+              <MenuItem value="ALL SITES">ALL SITES</MenuItem>
+              {sites.map((site: any) => (
+                <MenuItem key={site.id} value={site.id}>
+                  {site.siteName}
+                </MenuItem>
+              ))}
+            </Select>
             <KeyboardArrowDownIcon sx={{ ml: 1 }} />
           </Button>
         </div>

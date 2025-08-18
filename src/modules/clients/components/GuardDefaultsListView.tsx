@@ -1,12 +1,14 @@
+import {
+  useGetAlertnessDefaults,
+  useGetAttendanceCount,
+  useGetGeofenceActivity,
+  useGetLateCount,
+  useGetUniformDefaults,
+} from "@modules/clients/apis/hooks/useGetClientGuardDefaults";
 import { Box } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useMemo } from "react";
-import { useParams } from "react-router-dom";
-import { useGetAlertnessDefaults } from "../apis/hooks/useGetAlertnessDefaults";
-import { useGetAttendanceCount } from "../apis/hooks/useGetAttendanceCount";
-import { useGetGeofenceActivity } from "../apis/hooks/useGetGeofenceActivity";
-import { useGetLateCount } from "../apis/hooks/useGetLateCount";
-import { useGetUniformDefaults } from "../apis/hooks/useGetUniformDefaults";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   AbsentTableColumns,
   AlertnessTableColumns,
@@ -20,54 +22,46 @@ import { datagridStyle } from "../lib/datagridStyle";
 import { getDateRangeForView } from "../utils/dateRangeUtils";
 
 export const GuardDefaultsListView = () => {
-  const { selectedMetric, selectedView, currentDate } = useClientContext();
+  const { selectedMetric, selectedView, currentDate, selectedSite } = useClientContext();
   const { clientId } = useParams();
+  const dateRange = useMemo(() => getDateRangeForView(selectedView, currentDate), [selectedView, currentDate]);
+  const navigate = useNavigate();
 
-  // Calculate date range based on selected view
-  const dateRange = useMemo(() => {
-    return getDateRangeForView(selectedView, currentDate);
-  }, [selectedView, currentDate]);
-
-  // Fetch attendance count data for absent metric with date range
   const {
     data: attendanceCountData,
     isLoading: isLoadingAbsent,
     error: errorAbsent,
-  } = useGetAttendanceCount(clientId || "", dateRange.startDate, dateRange.endDate);
-
+  } = useGetAttendanceCount(clientId || "", dateRange.startDate, dateRange.endDate) as any;
   const {
     data: uniformData,
     isLoading: isLoadingUniform,
     error: errorUniform,
-  } = useGetUniformDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
-
+  } = useGetUniformDefaults(clientId || "", dateRange.startDate, dateRange.endDate) as any;
   const {
     data: alertnessData,
     isLoading: isLoadingAlertness,
     error: errorAlertness,
-  } = useGetAlertnessDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
-
+  } = useGetAlertnessDefaults(clientId || "", dateRange.startDate, dateRange.endDate) as any;
   const {
     data: lateData,
     isLoading: isLoadingLate,
     error: errorLate,
-  } = useGetLateCount(clientId || "", dateRange.startDate, dateRange.endDate);
-
+  } = useGetLateCount(clientId || "", dateRange.startDate, dateRange.endDate) as any;
   const {
     data: geofenceData,
     isLoading: isLoadingGeofence,
     error: errorGeofence,
-  } = useGetGeofenceActivity(clientId || "", dateRange.startDate, dateRange.endDate);
+  } = useGetGeofenceActivity(clientId || "", dateRange.startDate, dateRange.endDate) as any;
 
-  // Transform attendance data for absent guards
   const absentGuardsData = useMemo(() => {
-    if (!attendanceCountData?.data?.siteBreakdown) {
-      return [];
+    if (!attendanceCountData?.data?.siteBreakdown) return [];
+    let siteData = attendanceCountData.data.siteBreakdown;
+
+    if (selectedSite !== "ALL SITES") {
+      siteData = siteData.filter((site: any) => site.siteId === selectedSite);
     }
 
-    const siteBreakdown = attendanceCountData.data.siteBreakdown;
-
-    return siteBreakdown
+    return siteData
       .filter((site: any) => site.absentCount > 0)
       .map((site: any, index: number) => ({
         id: index,
@@ -78,26 +72,23 @@ export const GuardDefaultsListView = () => {
         replaced: 0,
         toReplace: site.absentCount,
       }));
-  }, [attendanceCountData]);
+  }, [attendanceCountData, selectedSite]);
 
   const uniformGuardsData = useMemo(() => {
-    if (!uniformData?.data?.sitesWithDefaults) {
-      return [];
+    if (!uniformData?.data?.sitesWithDefaults) return [];
+    let sitesData = uniformData.data.sitesWithDefaults;
+
+    if (selectedSite !== "ALL SITES") {
+      sitesData = sitesData.filter((site: any) => site.siteId === selectedSite);
     }
 
-    const sitesWithDefaults = uniformData.data.sitesWithDefaults;
-
-    const uniformSites = sitesWithDefaults
+    return sitesData
       .filter((site: any) => site.totalDefaults > 0)
       .map((site: any, index: number) => {
-        // Count unique guards from defaultsByDate
         const uniqueGuards = new Set();
         site.defaultsByDate?.forEach((dayData: any) => {
-          dayData.guards?.forEach((guard: any) => {
-            uniqueGuards.add(guard.guardId);
-          });
+          dayData.guards?.forEach((guard: any) => uniqueGuards.add(guard.guardId));
         });
-
         return {
           id: index,
           siteId: site.siteId,
@@ -108,28 +99,23 @@ export const GuardDefaultsListView = () => {
           defaultRate: ((site.totalDefaults / site.totalChecks) * 100).toFixed(1) + "%",
         };
       });
-
-    return uniformSites.length > 0 ? uniformSites : [];
-  }, [uniformData]);
+  }, [uniformData, selectedSite]);
 
   const alertnessGuardsData = useMemo(() => {
-    if (!alertnessData?.data?.sitesWithDefaults) {
-      return [];
+    if (!alertnessData?.data?.sitesWithDefaults) return [];
+    let sitesData = alertnessData.data.sitesWithDefaults;
+
+    if (selectedSite !== "ALL SITES") {
+      sitesData = sitesData.filter((site: any) => site.siteId === selectedSite);
     }
 
-    const sitesWithDefaults = alertnessData.data.sitesWithDefaults;
-
-    const alertnessSites = sitesWithDefaults
+    return sitesData
       .filter((site: any) => site.totalDefaults > 0)
       .map((site: any, index: number) => {
-        // Count unique guards from defaultsByDate
         const uniqueGuards = new Set();
         site.defaultsByDate?.forEach((dayData: any) => {
-          dayData.guards?.forEach((guard: any) => {
-            uniqueGuards.add(guard.guardId);
-          });
+          dayData.guards?.forEach((guard: any) => uniqueGuards.add(guard.guardId));
         });
-
         return {
           id: index,
           siteId: site.siteId,
@@ -140,43 +126,39 @@ export const GuardDefaultsListView = () => {
           defaultRate: ((site.totalDefaults / site.totalChecks) * 100).toFixed(1) + "%",
         };
       });
+  }, [alertnessData, selectedSite]);
 
-    return alertnessSites;
-  }, [alertnessData]);
-
-  // Transform late guards data with aggregation by site
   const lateGuardsData = useMemo(() => {
-    if (!lateData?.data?.lateGuardsByDate) {
-      return [];
+    if (!lateData?.data?.lateGuardsByDate) return [];
+    const siteMap = new Map();
+
+    let filteredData = lateData.data.lateGuardsByDate;
+    if (selectedSite !== "ALL SITES") {
+      filteredData = filteredData.filter((dayData: any) => dayData.siteId === selectedSite);
     }
 
-    // Group by site and aggregate data
-    const siteMap = new Map();
-    lateData.data.lateGuardsByDate.forEach((dayData) => {
+    (filteredData as any[]).forEach((dayData: any) => {
       const { siteId, siteName, guardCount, guards } = dayData;
-
       if (siteMap.has(siteId)) {
-        const existing = siteMap.get(siteId);
+        const existing: any = siteMap.get(siteId);
         existing.totalIncidents += guardCount;
-        existing.totalLateMinutes += guards.reduce((sum, guard) => sum + guard.lateMinutes, 0);
-        guards.forEach((guard) => existing.uniqueGuards.add(guard.guardId));
+        existing.totalLateMinutes += guards.reduce((sum: number, guard: any) => sum + guard.lateMinutes, 0);
+        guards.forEach((guard: any) => existing.uniqueGuards.add(guard.guardId));
       } else {
-        const uniqueGuards = new Set();
-        guards.forEach((guard) => uniqueGuards.add(guard.guardId));
-
+        const uniqueGuards = new Set<string>();
+        guards.forEach((guard: any) => uniqueGuards.add(guard.guardId));
         siteMap.set(siteId, {
           siteId,
           siteName,
           totalIncidents: guardCount,
-          totalLateMinutes: guards.reduce((sum, guard) => sum + guard.lateMinutes, 0),
+          totalLateMinutes: guards.reduce((sum: number, guard: any) => sum + guard.lateMinutes, 0),
           uniqueGuards,
-        });
+        } as any);
       }
     });
-
     return Array.from(siteMap.values())
-      .filter((site) => site.totalIncidents > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalIncidents > 0)
+      .map((site: any, index: number) => ({
         id: index,
         siteId: site.siteId,
         siteName: site.siteName,
@@ -184,100 +166,105 @@ export const GuardDefaultsListView = () => {
         totalIncidents: site.totalIncidents,
         avgLateMinutes: Math.round(site.totalLateMinutes / site.totalIncidents),
       }));
-  }, [lateData]);
+  }, [lateData, selectedSite]);
 
-  // Transform geofence data with site aggregation
   const geofenceGuardsData = useMemo(() => {
-    if (!geofenceData?.data?.guardsWithGeofenceActivity) {
-      return [];
+    if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
+    const siteMap = new Map();
+
+    let filteredSites = geofenceData.data.sitesWithGeofenceActivity;
+    if (selectedSite !== "ALL SITES") {
+      filteredSites = filteredSites.filter((siteActivity: any) => siteActivity.siteId === selectedSite);
     }
 
-    // Group by site and aggregate data
-    const siteMap = new Map();
-    geofenceData.data.guardsWithGeofenceActivity.forEach((guard) => {
-      const { siteName, sessionCount, sessions, guardId } = guard;
-
-      if (siteMap.has(siteName)) {
-        const existing = siteMap.get(siteName);
+    filteredSites.forEach((siteActivity: any) => {
+      const { siteId, siteName, sessionCount, guards } = siteActivity;
+      if (siteMap.has(siteId)) {
+        const existing = siteMap.get(siteId);
         existing.totalSessions += sessionCount;
-        existing.uniqueGuards.add(guardId);
-        existing.totalDuration += sessions.reduce((sum, session) => {
-          return sum + (parseInt(session.duration.replace(" Min", "")) || 0);
-        }, 0);
+        guards.forEach((guard: any) => {
+          existing.uniqueGuards.add(guard.guardId);
+          existing.totalDuration += guard.sessions.reduce(
+            (sum: any, session: any) => sum + (parseInt(session.duration.replace(" Min", "")) || 0),
+            0
+          );
+        });
       } else {
-        siteMap.set(siteName, {
+        const uniqueGuards = new Set();
+        let totalDuration = 0;
+        guards.forEach((guard: any) => {
+          uniqueGuards.add(guard.guardId);
+          totalDuration += guard.sessions.reduce(
+            (sum: any, session: any) => sum + (parseInt(session.duration.replace(" Min", "")) || 0),
+            0
+          );
+        });
+        siteMap.set(siteId, {
+          siteId,
           siteName,
           totalSessions: sessionCount,
-          uniqueGuards: new Set([guardId]),
-          totalDuration: sessions.reduce((sum, session) => {
-            return sum + (parseInt(session.duration.replace(" Min", "")) || 0);
-          }, 0),
+          uniqueGuards,
+          totalDuration,
         });
       }
     });
 
     return Array.from(siteMap.values())
-      .filter((site) => site.totalSessions > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalSessions > 0)
+      .map((site: any, index: number) => ({
         id: index,
+        siteId: site.siteId,
         siteName: site.siteName,
         guardCount: site.uniqueGuards.size,
         totalSessions: site.totalSessions,
         avgDuration: Math.round(site.totalDuration / site.totalSessions),
       }));
-  }, [geofenceData]);
+  }, [geofenceData, selectedSite]);
 
-  // Transform patrol data (reusing geofence data)
   const patrolGuardsData = useMemo(() => {
-    if (!geofenceData?.data?.guardsWithGeofenceActivity) {
-      return [];
+    if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
+    const siteMap = new Map();
+
+    let filteredSites = geofenceData.data.sitesWithGeofenceActivity;
+    if (selectedSite !== "ALL SITES") {
+      filteredSites = filteredSites.filter((siteActivity: any) => siteActivity.siteId === selectedSite);
     }
 
-    // Group by site for patrol metrics
-    const siteMap = new Map();
-    geofenceData.data.guardsWithGeofenceActivity.forEach((guard) => {
-      const { siteName, sessionCount, guardId } = guard;
-
-      if (siteMap.has(siteName)) {
-        const existing = siteMap.get(siteName);
+    filteredSites.forEach((siteActivity: any) => {
+      const { siteId, siteName, sessionCount, guards } = siteActivity;
+      if (siteMap.has(siteId)) {
+        const existing = siteMap.get(siteId);
         existing.totalPatrols += sessionCount;
-        existing.uniqueGuards.add(guardId);
+        guards.forEach((guard: any) => existing.uniqueGuards.add(guard.guardId));
       } else {
-        siteMap.set(siteName, {
+        const uniqueGuards = new Set();
+        guards.forEach((guard: any) => uniqueGuards.add(guard.guardId));
+        siteMap.set(siteId, {
+          siteId,
           siteName,
           totalPatrols: sessionCount,
-          uniqueGuards: new Set([guardId]),
+          uniqueGuards,
         });
       }
     });
-
     return Array.from(siteMap.values())
-      .filter((site) => site.totalPatrols > 0)
-      .map((site, index) => ({
+      .filter((site: any) => site.totalPatrols > 0)
+      .map((site: any, index: number) => ({
         id: index,
+        siteId: site.siteId,
         siteName: site.siteName,
         guardCount: site.uniqueGuards.size,
         totalPatrols: site.totalPatrols,
         avgPatrolsPerGuard: Math.round(site.totalPatrols / site.uniqueGuards.size),
       }));
-  }, [geofenceData]);
+  }, [geofenceData, selectedSite]);
 
   const getTableData = () => {
     switch (selectedMetric) {
       case "absent":
-        return {
-          rows: absentGuardsData,
-          columns: AbsentTableColumns,
-          isLoading: isLoadingAbsent,
-          error: errorAbsent,
-        };
+        return { rows: absentGuardsData, columns: AbsentTableColumns, isLoading: isLoadingAbsent, error: errorAbsent };
       case "late":
-        return {
-          rows: lateGuardsData,
-          columns: LateTableColumns,
-          isLoading: isLoadingLate,
-          error: errorLate,
-        };
+        return { rows: lateGuardsData, columns: LateTableColumns, isLoading: isLoadingLate, error: errorLate };
       case "uniform":
         return {
           rows: uniformGuardsData,
@@ -306,6 +293,8 @@ export const GuardDefaultsListView = () => {
           isLoading: isLoadingGeofence,
           error: errorGeofence,
         };
+      default:
+        return null;
     }
   };
 
@@ -374,16 +363,7 @@ export const GuardDefaultsListView = () => {
   return (
     <div className="flex flex-col bg-white p-4 items-center h-full w-full">
       <span className="uppercase text-lg mb-4">{selectedMetric} : LIST VIEW</span>
-      <Box
-        sx={{
-          width: "100%",
-          flexGrow: 1,
-          minHeight: 400,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <Box sx={{ width: "100%", flexGrow: 1, minHeight: 400, minWidth: 0, display: "flex", flexDirection: "column" }}>
         <DataGrid
           rows={tableData.rows}
           columns={tableData.columns}
@@ -391,6 +371,11 @@ export const GuardDefaultsListView = () => {
           disableColumnMenu
           disableRowSelectionOnClick
           sx={datagridStyle}
+          onRowClick={(params) => {
+            const siteId = params.row.siteId || params.row.id;
+            const { clientId } = useParams();
+            navigate(`/clients/${clientId}/performance/guards-defaults/${siteId}`);
+          }}
         />
       </Box>
     </div>

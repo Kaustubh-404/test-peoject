@@ -165,9 +165,7 @@ export const authService = {
 
       if (error.response?.status === 404) {
         // Verify endpoint doesn't exist - this is not necessarily an error
-        console.warn(
-          "⚠️/api/v2/auth/agency-login endpoint not found on server. Consider implementing token verification."
-        );
+        console.warn("⚠️/auth/agency-login endpoint not found on server. Consider implementing token verification.");
         throw error; // Let the calling code handle this gracefully
       } else if (error.response?.status === 401) {
         // Token is invalid or expired

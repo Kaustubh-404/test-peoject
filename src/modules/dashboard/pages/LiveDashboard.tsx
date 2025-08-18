@@ -17,7 +17,12 @@ import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
 import { Box, Button, CircularProgress, Divider, Typography } from "@mui/material";
 import { Shirt } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useDashboardOverview, useLateUniformSummary } from "../apis/hooks/useDashboard";
+import {
+  useAreaOfficerTasks,
+  useDashboardOverview,
+  useLateUniformSummary,
+  useShiftPerformanceIssues,
+} from "../apis/hooks/useDashboard";
 import DashboardTableView from "../components/DashboardTableView";
 
 type ViewType = "live" | "day" | "month";
@@ -92,6 +97,30 @@ export default function LiveDashboard() {
     incidentStatus: "ALL",
   });
 
+  // Fetch shift performance issues data for shifts section
+  const {
+    data: shiftPerformanceData,
+    isLoading: isShiftPerformanceLoading,
+    error: shiftPerformanceError,
+  } = useShiftPerformanceIssues({
+    opAgencyId,
+    page: 1,
+    limit: 50,
+    sortOrder: "desc",
+    incidentStatus: "ALL",
+  });
+
+  // Fetch area officer tasks data for area-officers-tasks section
+  const {
+    data: areaOfficerTasksData,
+    isLoading: isAreaOfficerTasksLoading,
+    error: areaOfficerTasksError,
+  } = useAreaOfficerTasks({
+    opAgencyId,
+    page: 1,
+    limit: 50,
+  });
+
   // Calculate totals from dashboard data for summary cards
   const overviewData = dashboardData?.data?.data?.[0]?.overviewData || [];
   const totals = overviewData.reduce(
@@ -110,6 +139,16 @@ export default function LiveDashboard() {
   const guardTotals = {
     late: lateUniformSummary?.totalLateCount || 0,
     uniform: lateUniformSummary?.totalUniformDefaultCount || 0,
+  };
+
+  // Extract total counts for shift performance
+  const shiftPerformanceSummary: any = shiftPerformanceData?.data?.data?.[0] || {};
+
+  // Extract total counts for area officer tasks
+  const areaOfficerTasksSummary = {
+    overdueTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "OVERDUE")?.length || 0,
+    pendingTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "PENDING")?.length || 0,
+    completedTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "COMPLETED")?.length || 0,
   };
 
   const [showFavouritesOnly] = useState(false);
@@ -162,7 +201,13 @@ export default function LiveDashboard() {
     setFilteredRows(result);
   };
 
-  if (isLoading || isDashboardLoading || isLateUniformLoading) {
+  if (
+    isLoading ||
+    isDashboardLoading ||
+    isLateUniformLoading ||
+    isShiftPerformanceLoading ||
+    isAreaOfficerTasksLoading
+  ) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
@@ -171,7 +216,7 @@ export default function LiveDashboard() {
     );
   }
 
-  if (error || dashboardError || lateUniformError) {
+  if (error || dashboardError || lateUniformError || shiftPerformanceError || areaOfficerTasksError) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography color="error">
@@ -386,7 +431,7 @@ export default function LiveDashboard() {
               }}
             >
               <div className="flex flex-col items-center p-2">
-                <span>70</span>
+                <span>{shiftPerformanceSummary.totalAlertnessCount ?? 0}</span>
                 <img src="/client_icons/alertness.svg" alt="Alertness" className="w-6 h-6" />
                 <span
                   className="text-xs"
@@ -394,7 +439,7 @@ export default function LiveDashboard() {
                     color: selectedTableView === "shifts" ? "white" : "#2A77D5",
                   }}
                 >
-                  LATE
+                  ALERTNESS
                 </span>
               </div>
               <Divider
@@ -404,7 +449,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>32</span>
+                <span>{shiftPerformanceSummary.totalGeofenceCount ?? 0}</span>
                 <MapsHomeWorkOutlinedIcon
                   sx={{
                     color: selectedTableView === "shifts" ? "white" : "#2A77D5",
@@ -417,7 +462,7 @@ export default function LiveDashboard() {
                     color: selectedTableView === "shifts" ? "white" : "#2A77D5",
                   }}
                 >
-                  UNIFORM
+                  GEOFENCE
                 </span>
               </div>
               <Divider
@@ -598,7 +643,7 @@ export default function LiveDashboard() {
               }}
             >
               <div className="flex flex-col items-center p-2">
-                <span>02</span>
+                <span>{areaOfficerTasksSummary.overdueTasks ?? 0}</span>
                 <WarningAmberOutlinedIcon
                   sx={{
                     color: selectedTableView === "area-officers-tasks" ? "white" : "#2A77D5",
@@ -621,7 +666,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>01</span>
+                <span>{areaOfficerTasksSummary.pendingTasks ?? 0}</span>
                 <HistoryToggleOffIcon
                   sx={{
                     color: selectedTableView === "area-officers-tasks" ? "white" : "#2A77D5",
@@ -644,7 +689,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>04</span>
+                <span>{areaOfficerTasksSummary.completedTasks ?? 0}</span>
                 <TaskAltOutlinedIcon
                   sx={{
                     color: selectedTableView === "area-officers-tasks" ? "white" : "#2A77D5",

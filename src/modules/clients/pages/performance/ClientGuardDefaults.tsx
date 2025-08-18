@@ -1,8 +1,10 @@
-import { useGetAlertnessDefaults } from "@modules/clients/apis/hooks/useGetAlertnessDefaults";
-import { useGetAttendanceCount } from "@modules/clients/apis/hooks/useGetAttendanceCount";
-import { useGetGeofenceActivity } from "@modules/clients/apis/hooks/useGetGeofenceActivity";
-import { useGetLateCount } from "@modules/clients/apis/hooks/useGetLateCount";
-import { useGetUniformDefaults } from "@modules/clients/apis/hooks/useGetUniformDefaults";
+import {
+  useGetAlertnessDefaults,
+  useGetAttendanceCount,
+  useGetGeofenceActivity,
+  useGetLateCount,
+  useGetUniformDefaults,
+} from "@modules/clients/apis/hooks/useGetClientGuardDefaults";
 import MetricChart from "@modules/clients/components/CustomMetricChart";
 import { renderMetricComponent } from "@modules/clients/components/GuardDefaultsComponents";
 import { GuardDefaultsListView } from "@modules/clients/components/GuardDefaultsListView";
@@ -18,7 +20,7 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 
 export default function ClientGuardDefaults() {
-  const { selectedView, currentDate, selectedMetric, setSelectedMetric } = useClientContext();
+  const { selectedView, currentDate, selectedMetric, setSelectedMetric, selectedSite } = useClientContext();
   const { clientId } = useParams();
 
   const dateRange = useMemo(() => {
@@ -54,20 +56,61 @@ export default function ClientGuardDefaults() {
   const isLoading = isLoadingAbsent || isLoadingLate || isLoadingUniform || isLoadingAlertness || isLoadingGeofence;
 
   const metrics = useMemo(() => {
-    return {
-      absent: attendanceData?.data?.summary?.totalUniqueAbsentGuards || 0,
-      late: lateData?.data?.totalLateIncidents || 0,
-      uniform: uniformData?.data?.totalUniformDefaults || 0,
-      alertness: alertnessData?.data?.totalAlertnessDefaults || 0,
-      geofence: geofenceData?.data?.guardsWithGeofenceActivity?.length || 0,
-      patrol: geofenceData?.data?.totalSessions || 0,
-      total:
-        (attendanceData?.data?.summary?.totalUniqueAbsentGuards || 0) +
-        (lateData?.data?.totalLateIncidents || 0) +
-        (uniformData?.data?.totalUniformDefaults || 0) +
-        (alertnessData?.data?.totalAlertnessDefaults || 0),
-    };
-  }, [attendanceData, lateData, uniformData, alertnessData, geofenceData]);
+    if (selectedSite === "ALL SITES") {
+      // Use original data for all sites
+      return {
+        absent: attendanceData?.data?.summary?.totalUniqueAbsentGuards || 0,
+        late: lateData?.data?.totalLateIncidents || 0,
+        uniform: uniformData?.data?.totalUniformDefaults || 0,
+        alertness: alertnessData?.data?.totalAlertnessDefaults || 0,
+        geofence: geofenceData?.data?.sitesWithGeofenceActivity?.length || 0,
+        patrol: geofenceData?.data?.totalSessions || 0,
+        total:
+          (attendanceData?.data?.summary?.totalUniqueAbsentGuards || 0) +
+          (lateData?.data?.totalLateIncidents || 0) +
+          (uniformData?.data?.totalUniformDefaults || 0) +
+          (alertnessData?.data?.totalAlertnessDefaults || 0),
+      };
+    } else {
+      // Calculate metrics for specific site
+      const siteAbsent =
+        attendanceData?.data?.siteBreakdown?.find((site: any) => site.siteId === selectedSite)?.uniqueAbsentGuards || 0;
+
+      const siteLateIncidents =
+        lateData?.data?.lateGuardsByDate
+          ?.filter((dayData: any) => dayData.siteId === selectedSite)
+          ?.reduce((total: number, dayData: any) => total + dayData.guardCount, 0) || 0;
+
+      const siteUniformDefaults =
+        uniformData?.data?.sitesWithDefaults
+          ?.filter((site: any) => site.siteId === selectedSite)
+          ?.reduce((total: number, site: any) => total + site.totalDefaults, 0) || 0;
+
+      const siteAlertnessDefaults =
+        alertnessData?.data?.sitesWithDefaults
+          ?.filter((site: any) => site.siteId === selectedSite)
+          ?.reduce((total: number, site: any) => total + site.totalDefaults, 0) || 0;
+
+      const siteGeofenceGuards =
+        geofenceData?.data?.sitesWithGeofenceActivity?.filter((activity: any) => activity.siteId === selectedSite)
+          ?.length || 0;
+
+      const sitePatrolSessions =
+        geofenceData?.data?.sitesWithGeofenceActivity
+          ?.filter((activity: any) => activity.siteId === selectedSite)
+          ?.reduce((total: number, activity: any) => total + activity.sessionCount, 0) || 0;
+
+      return {
+        absent: siteAbsent,
+        late: siteLateIncidents,
+        uniform: siteUniformDefaults,
+        alertness: siteAlertnessDefaults,
+        geofence: siteGeofenceGuards,
+        patrol: sitePatrolSessions,
+        total: siteAbsent + siteLateIncidents + siteUniformDefaults + siteAlertnessDefaults,
+      };
+    }
+  }, [attendanceData, lateData, uniformData, alertnessData, geofenceData, selectedSite]);
 
   const handleMetricChange = (metric: string) => {
     setSelectedMetric(metric);

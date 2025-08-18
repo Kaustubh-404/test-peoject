@@ -273,18 +273,8 @@ function GuardRequirement({ guardIndex, shiftIndex, sitePostIndex, onDelete, can
           </div>
 
           <div className="h-full items-center flex pt-4 w-fit whitespace-nowrap">
-            <Button
-              onClick={() => setSelectPatrolRoutesModalOpen(true)}
-              variant="contained"
-              disabled={!patrolEnabled}
-              sx={{
-                backgroundColor: selectedPatrolRoutes.length > 0 ? "#2A77D5" : undefined,
-                "&:hover": {
-                  backgroundColor: selectedPatrolRoutes.length > 0 ? "#1e5ba8" : undefined,
-                },
-              }}
-            >
-              <DirectionsRunOutlinedIcon sx={{ mr: 1 }} />
+            <Button onClick={() => setSelectPatrolRoutesModalOpen(true)} variant="contained" disabled={!patrolEnabled}>
+              <DirectionsRunOutlinedIcon />
               {selectedPatrolRoutes.length > 0 ? `Routes Selected (${selectedPatrolRoutes.length})` : "Select Patrol"}
             </Button>
           </div>

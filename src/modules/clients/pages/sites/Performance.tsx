@@ -1,5 +1,4 @@
 import { IncidentReportColumns, incidentReportItems } from "@modules/clients/columns/SitePerformanceIncidents";
-import { ClientDefaultsDetailsTable } from "@modules/clients/components/ClientDefaultsDetailsTable";
 import { datagridStyle } from "@modules/clients/lib/datagridStyle";
 import { formatDate, getWeekRange } from "@modules/clients/utils/dateRangeUtils";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
@@ -226,7 +225,7 @@ export default function Performance() {
             </div>
           </div>
 
-          <ClientDefaultsDetailsTable selectedMetric={selectedMetric} setSelectedGuard={setSelectedGuard} />
+          {/* <ClientDefaultsDetailsTable selectedMetric={selectedMetric} setSelectedGuard={setSelectedGuard} /> */}
         </div>
 
         <div className="flex flex-col gap-4 w-full">

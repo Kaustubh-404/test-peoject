@@ -1,7 +1,7 @@
 import { Search, StarBorder, Tune } from "@mui/icons-material";
 import { CircularProgress, InputAdornment, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useAreaOfficers,
   useDashboardOverview,
@@ -15,7 +15,9 @@ import { guardsColumns, guardsDatagridStyle } from "../columns/GuardsColumns";
 import { livelinessColumns, livelinessDatagridStyle } from "../columns/LivelinessColumns";
 import { columns, datagridStyle } from "../columns/OverviewColumns";
 import { shiftsColumns, shiftsDatagridStyle } from "../columns/ShiftsColumns";
+import AreaOfficersTasksView from "./AreaOfficersTasksView";
 import IncidentReportsView from "./IncidentReportsView";
+
 interface DashboardTableViewProps {
   selectedTableView: string;
   selectedColumn: string;
@@ -158,13 +160,16 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
   // Transform area officers data for area officers view
   const transformedAreaOfficersData = areaOfficersOverview.map((item: any, index: number) => ({
     id: index + 1,
-    name: item.clientName, // Using clientName as name for now
-    assignedArea: "N/A", // Not available in API
-    absent: 0, // Set to 0 for now, not available per client
-    late: item.lateCount,
-    uniform: item.uniform,
+    name: item.clientName,
+    assignedArea: "N/A", // Not available in API response
+    absent: 0, // Not available in API response
+    late: item.lateCount || 0,
+    uniform: item.uniform || 0,
   }));
 
+  useEffect(() => {
+    console.log("Transformed Overview Data:", transformedAreaOfficersData);
+  });
   // Starred Header Component
   const StarredHeader = () => (
     <div className="flex justify-between items-center mb-4">
@@ -442,6 +447,10 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         error={incidentReportsError}
       />
     );
+  }
+
+  if (selectedTableView === "area-officers-tasks") {
+    return <AreaOfficersTasksView />;
   }
 
   // Return placeholder for other views

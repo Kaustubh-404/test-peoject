@@ -5,13 +5,12 @@ import {
   AbsentColumns,
   AlertnessColumns,
   GeofenceColumns,
-  LateColumns,
   PatrolColumns,
   UniformColumns,
   guardAbsentItems,
   guardAlertnessItems,
   guardGeofenceItems,
-  guardLateItems,
+  // guardLateItems,
   guardPatrolItems,
   guardUniformItems,
   type GuardAbsentItems,
@@ -90,12 +89,12 @@ export const SitePerformanceTable = ({
         setSelectedGuard: setSelectedGuard,
       });
 
-    case "late":
-      return commonTable({
-        items: guardLateItems,
-        columns: LateColumns,
-        setSelectedGuard: setSelectedGuard,
-      });
+    // case "late":
+    //   return commonTable({
+    //     items: guardLateItems,
+    //     columns: LateColumns,
+    //     setSelectedGuard: setSelectedGuard,
+    //   });
 
     case "uniform":
       return commonTable({

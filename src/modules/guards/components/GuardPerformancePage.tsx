@@ -33,6 +33,11 @@ const GuardPerformancePage: React.FC = () => {
 
       if (guard) {
         setGuardData(guard);
+        console.log("✅ Guard found:", {
+          id: guard.id,
+          name: guard.name,
+          companyId: guard.companyId,
+        });
       } else {
         // If guard not found, create a placeholder with formatted name
         const formattedName = guardName
@@ -40,7 +45,7 @@ const GuardPerformancePage: React.FC = () => {
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(" ");
 
-        setGuardData({
+        const placeholderGuard = {
           id: "unknown",
           name: formattedName,
           companyId: "Unknown",
@@ -58,7 +63,15 @@ const GuardPerformancePage: React.FC = () => {
           dateOfBirth: "",
           address: "",
           designation: "",
-        } as unknown as Guard);
+        } as unknown as Guard;
+
+        setGuardData(placeholderGuard);
+
+        console.log("⚠️ Guard not found in context, using placeholder:", {
+          searchName: guardName,
+          placeholderName: formattedName,
+          placeholderId: "unknown",
+        });
       }
     }
   }, [guardName, getGuardByName]);
@@ -97,6 +110,11 @@ const GuardPerformancePage: React.FC = () => {
   // Function to handle section change
   const handleSectionChange = (section: SectionType) => {
     setActiveSection(section);
+    console.log("🔄 Section changed:", {
+      previousSection: activeSection,
+      newSection: section,
+      guardId: guardData?.id,
+    });
   };
 
   // Show loading state while fetching guard data
@@ -342,7 +360,7 @@ const GuardPerformancePage: React.FC = () => {
           </Box>
         </Box>
 
-        {/* Right content area - Now using WindowRenderer */}
+        {/* Right content area - Now using WindowRenderer with guardData */}
         <Box
           sx={{
             width: "1052px",
@@ -351,7 +369,8 @@ const GuardPerformancePage: React.FC = () => {
             marginLeft: "16px",
           }}
         >
-          <WindowRenderer activeSection={activeSection} />
+          {/* ✅ Pass guardData to WindowRenderer */}
+          <WindowRenderer activeSection={activeSection} guardData={guardData} />
         </Box>
       </Box>
     </Box>

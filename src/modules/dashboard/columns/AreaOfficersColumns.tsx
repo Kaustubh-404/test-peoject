@@ -20,28 +20,6 @@ export const areaOfficersColumns: GridColDef[] = [
     align: "center",
     headerAlign: "center",
     type: "number",
-    renderCell: (params) => {
-      if (params.value) {
-        return (
-          <div
-            style={{
-              backgroundColor: "#000000",
-              color: "white",
-              padding: "4px 8px",
-              borderRadius: "12px",
-              fontSize: "14px",
-              fontWeight: "bold",
-              textAlign: "center",
-              display: "inline-block",
-              minWidth: "40px",
-            }}
-          >
-            👤
-          </div>
-        );
-      }
-      return null;
-    },
   },
   {
     field: "late",
@@ -50,17 +28,6 @@ export const areaOfficersColumns: GridColDef[] = [
     align: "center",
     headerAlign: "center",
     type: "number",
-    renderCell: (params) => {
-      if (params.value > 0) {
-        return (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-            <span>🕐</span>
-            <span>{params.value.toString().padStart(2, "0")}</span>
-          </div>
-        );
-      }
-      return null;
-    },
   },
   {
     field: "uniform",
@@ -69,17 +36,6 @@ export const areaOfficersColumns: GridColDef[] = [
     align: "center",
     headerAlign: "center",
     type: "number",
-    renderCell: (params) => {
-      if (params.value > 0) {
-        return (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-            <span>👕</span>
-            <span>{params.value.toString().padStart(2, "0")}</span>
-          </div>
-        );
-      }
-      return null;
-    },
   },
 ];
 

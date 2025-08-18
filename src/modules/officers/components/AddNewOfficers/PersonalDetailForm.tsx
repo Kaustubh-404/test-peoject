@@ -244,30 +244,63 @@ const OfficerPersonalDetailsForm: React.FC<OfficerPersonalDetailsFormProps> = ({
                   <Typography sx={{ fontSize: "12px", color: "#707070", mt: 0.5 }}>Max size: 2MB</Typography>
                 </>
               ) : (
-                <Box sx={{ textAlign: "center", p: 1 }}>
-                  <img
-                    src={URL.createObjectURL(selectedFile)}
-                    alt="Profile Preview"
-                    style={{ maxWidth: "100%", maxHeight: "140px", objectFit: "contain" }}
-                  />
-                  <Typography sx={{ fontSize: "14px", color: "#3B3B3B", mt: 1 }}>{selectedFile.name}</Typography>
-                  <Typography sx={{ fontSize: "12px", color: "#707070" }}>
-                    {(selectedFile.size / 1024).toFixed(0)} KB
-                  </Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    height: "100%",
+                    p: 1,
+                  }}
+                >
                   <Box
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedFile(null);
-                      setValue("personalDetails.profilePhoto", null);
-                    }}
                     sx={{
-                      mt: 1,
-                      color: "#E05952",
-                      fontSize: "12px",
-                      cursor: "pointer",
+                      width: "130px",
+                      height: "140px",
+                      overflow: "hidden",
+                      borderRadius: "4px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    Remove
+                    <img
+                      src={URL.createObjectURL(selectedFile)}
+                      alt="Profile Preview"
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover",
+                        borderRadius: "4px",
+                      }}
+                    />
+                  </Box>
+                  <Box sx={{ textAlign: "center", mt: 1 }}>
+                    <Typography sx={{ fontSize: "12px", color: "#3B3B3B", fontWeight: "500" }}>
+                      {selectedFile.name.length > 15 ? selectedFile.name.substring(0, 15) + "..." : selectedFile.name}
+                    </Typography>
+                    <Typography sx={{ fontSize: "10px", color: "#707070" }}>
+                      {(selectedFile.size / 1024).toFixed(0)} KB
+                    </Typography>
+                    <Box
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                        setValue("personalDetails.profilePhoto", null);
+                      }}
+                      sx={{
+                        mt: 0.5,
+                        color: "#E05952",
+                        fontSize: "10px",
+                        cursor: "pointer",
+                        "&:hover": {
+                          textDecoration: "underline",
+                        },
+                      }}
+                    >
+                      Remove
+                    </Box>
                   </Box>
                 </Box>
               )}

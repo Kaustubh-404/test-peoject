@@ -187,7 +187,7 @@ export const officerProfileService = {
     try {
       console.log(`🔄 Updating officer profile: ${officerId}`, updateData);
 
-      // Transform the update data to match API expectations - IDENTICAL to guard service
+      // Transform the update data to match API expectations
       const apiUpdateData = officerProfileService.transformUpdateDataForAPI(updateData);
 
       console.log(`📤 Sending officer API update data:`, apiUpdateData);
@@ -262,9 +262,10 @@ export const officerProfileService = {
     }
   },
 
-  // Transform update data from form format to API format - EXACTLY IDENTICAL to guard service
   transformUpdateDataForAPI: (updateData: OfficerProfileUpdateRequest): any => {
     const apiData: any = {};
+
+    apiData.userType = "AREA_OFFICER";
 
     // Personal details transformation - IDENTICAL to guard service
     if (updateData.personalDetails) {
@@ -424,7 +425,7 @@ export const officerProfileService = {
       }
     }
 
-    console.log("🔄 Transformed officer API data:", apiData);
+    console.log("🔄 Transformed officer API data with preserved userType:", apiData);
     return apiData;
   },
 

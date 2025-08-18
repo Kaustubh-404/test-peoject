@@ -1,3 +1,10 @@
+import {
+  useGetAlertnessDefaults,
+  useGetAttendanceCount,
+  useGetGeofenceActivity,
+  useGetLateCount,
+  useGetUniformDefaults,
+} from "@modules/clients/apis/hooks/useGetClientGuardDefaults";
 import { ClientDefaultsDetailsTable } from "@modules/clients/components/ClientDefaultsDetailsTable";
 import { useClientContext } from "@modules/clients/context/ClientContext";
 import { formatDate, getWeekRange } from "@modules/clients/utils/dateRangeUtils";
@@ -12,7 +19,7 @@ import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import PersonOffOutlinedIcon from "@mui/icons-material/PersonOffOutlined";
 import { Avatar, Button } from "@mui/material";
 import { ShirtIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   type GuardAbsentItems,
@@ -30,6 +37,7 @@ import {
   PatrolDetails,
   UniformInspection,
 } from "../../components/ClientDefaultsDetailsComponents";
+import { getDateRangeForView } from "../../utils/dateRangeUtils";
 
 type ViewType = "day" | "week" | "month" | "custom";
 type GuardItems =
@@ -41,7 +49,7 @@ type GuardItems =
   | GuardPatrolItems;
 
 export default function ClientGuardDefaultsDetails() {
-  const { siteId } = useParams();
+  const { siteId, clientId } = useParams();
   const [selectedGuard, setSelectedGuard] = useState<GuardItems | null>(null);
   const { selectedView, setSelectedView, currentDate, selectedMetric, setSelectedMetric, clientDetails } =
     useClientContext();
@@ -60,15 +68,11 @@ export default function ClientGuardDefaultsDetails() {
     },
   });
 
-  const handleViewChange = (view: ViewType) => {
-    setSelectedView(view);
-  };
-
+  const handleViewChange = (view: ViewType) => setSelectedView(view);
   const handleMetricChange = (metric: string) => {
     setSelectedMetric(metric);
     setSelectedGuard(null);
   };
-
   const getMetricButtonStyles = (metric: string) => ({
     display: "flex",
     flexDirection: "column",
@@ -87,23 +91,22 @@ export default function ClientGuardDefaultsDetails() {
   });
 
   useEffect(() => {
-    console.log("Selected Guard:", selectedGuard);
-    console.log("Selected Metric:", selectedMetric);
+    console.log("Selected Guard:", selectedGuard, "Selected Metric:", selectedMetric);
   }, [selectedGuard, selectedMetric]);
-
   const renderDetailsComponent = () => {
     if (!selectedGuard) return null;
-
     switch (selectedMetric) {
       case "absent":
         return <AbsentDetails guardData={selectedGuard as GuardAbsentItems} />;
-
       case "late":
         return <LateDetails guardData={selectedGuard as GuardLateItems} />;
-
       case "uniform":
-        return <UniformInspection guardPhoto={selectedGuard.photo} guardName={selectedGuard.name} />;
-
+        return (
+          <UniformInspection
+            guardPhoto={(selectedGuard as GuardUniformItems).photo}
+            guardName={(selectedGuard as GuardUniformItems).name}
+          />
+        );
       case "alertness":
         return (
           <AlertnessDetails
@@ -114,7 +117,6 @@ export default function ClientGuardDefaultsDetails() {
             ]}
           />
         );
-
       case "geofence":
         return (
           <GeofenceDetails
@@ -127,7 +129,7 @@ export default function ClientGuardDefaultsDetails() {
                 exitTime: "08:58 AM",
                 duration: "18 Min",
                 aoAction: "Approved",
-                status: "approved" as const,
+                status: "approved",
                 viewReason: "View Task",
               },
               {
@@ -137,13 +139,12 @@ export default function ClientGuardDefaultsDetails() {
                 exitTime: "02:34 PM",
                 duration: "10 Min",
                 aoAction: "Pending",
-                status: "pending" as const,
+                status: "pending",
                 viewReason: "View Task",
               },
             ]}
           />
         );
-
       case "patrol":
         return (
           <PatrolDetails
@@ -156,7 +157,7 @@ export default function ClientGuardDefaultsDetails() {
                 patrolRound: "01",
                 checkPoint: "01",
                 error: "Photo Not Taken",
-                errorType: "photo" as const,
+                errorType: "photo",
               },
               {
                 id: 2,
@@ -165,7 +166,7 @@ export default function ClientGuardDefaultsDetails() {
                 patrolRound: "02",
                 checkPoint: "03",
                 error: "Patrol Unfinished",
-                errorType: "unfinished" as const,
+                errorType: "unfinished",
               },
               {
                 id: 3,
@@ -174,16 +175,85 @@ export default function ClientGuardDefaultsDetails() {
                 patrolRound: "02",
                 checkPoint: "-",
                 error: "Patrol Missed",
-                errorType: "missed" as const,
+                errorType: "missed",
               },
             ]}
           />
         );
-
       default:
         return null;
     }
   };
+
+  const dateRange = useMemo(() => getDateRangeForView(selectedView, currentDate), [selectedView, currentDate]);
+
+  const { data: attendanceData } = useGetAttendanceCount(clientId || "", dateRange.startDate, dateRange.endDate);
+  const { data: uniformData } = useGetUniformDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
+  const { data: alertnessData } = useGetAlertnessDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
+  const { data: lateData } = useGetLateCount(clientId || "", dateRange.startDate, dateRange.endDate);
+  const { data: geofenceData } = useGetGeofenceActivity(clientId || "", dateRange.startDate, dateRange.endDate);
+
+  const absentGuards = useMemo(() => {
+    if (!attendanceData?.data?.topAbsentGuards || !siteId) return [];
+    return attendanceData.data.topAbsentGuards
+      .filter((guard: any) => guard.siteId === siteId)
+      .map((guard: any) => ({
+        id: guard.guardId,
+        name: guard.guardName,
+        phone: "N/A",
+        photo: guard.guardPhoto || "/placeholder-avatar.png",
+        dutyTime: "08:00 - 20:00",
+        absentDays: guard.totalAbsences,
+        lastAbsentDate: guard.absentDuties[guard.absentDuties.length - 1]?.dutyDate || "",
+        reason: guard.absentDuties[guard.absentDuties.length - 1]?.notes || "Not specified",
+      })) as GuardAbsentItems[];
+  }, [attendanceData, siteId]);
+
+  const uniformGuards = useMemo(() => {
+    if (!uniformData?.data?.sitesWithDefaults || !siteId) return [];
+    const siteData = uniformData.data.sitesWithDefaults.find((site: any) => site.siteId === siteId);
+    if (!siteData) return [];
+    return siteData.defaultsByDate.flatMap((dayData: any) =>
+      (dayData.guards ?? []).map((guard: any) => ({ ...guard, id: guard.guardId }))
+    );
+  }, [uniformData, siteId]);
+
+  const alertnessGuards = useMemo(() => {
+    if (!alertnessData?.data?.sitesWithDefaults || !siteId) return [];
+    const siteData = alertnessData.data.sitesWithDefaults.find((site: any) => site.siteId === siteId);
+    if (!siteData) return [];
+    return siteData.defaultsByDate.flatMap((dayData: any) =>
+      (dayData.guards ?? []).map((guard: any) => ({ ...guard, id: guard.guardId }))
+    );
+  }, [alertnessData, siteId]);
+
+  const lateGuards = useMemo(() => {
+    if (!lateData?.data?.lateGuardsByDate || !siteId) return [];
+    return lateData.data.lateGuardsByDate
+      .filter((dayData: any) => dayData.siteId === siteId)
+      .flatMap((dayData: any) => dayData.guards.map((guard: any) => ({ ...guard, id: guard.guardId })));
+  }, [lateData, siteId]);
+
+  const geofenceGuards = useMemo(() => {
+    if (!geofenceData?.data?.sitesWithGeofenceActivity || !siteId) return [];
+    const siteData = geofenceData.data.sitesWithGeofenceActivity.find((site: any) => site.siteId === siteId);
+    if (!siteData || !siteData.guards) return [];
+    return siteData.guards.map((guard: any) => ({
+      ...guard,
+      id: guard.guardId,
+      photo: guard.photo,
+      count: guard.sessions ? guard.sessions.length : 0,
+    }));
+  }, [geofenceData, siteId]);
+
+  const patrolGuards = useMemo(() => {
+    if (!geofenceData?.data?.guardsWithGeofenceActivity || !siteId) return [];
+    const siteName = attendanceData?.data?.siteBreakdown?.find((site: any) => site.siteId === siteId)?.siteName;
+    if (!siteName) return [];
+    return geofenceData.data.guardsWithGeofenceActivity
+      .filter((guard: any) => guard.siteName === siteName)
+      .map((guard: any) => ({ ...guard, id: guard.guardId }));
+  }, [geofenceData, siteId, attendanceData]);
 
   return (
     <div className="flex flex-col">
@@ -241,13 +311,15 @@ export default function ClientGuardDefaultsDetails() {
 
       <div className="flex flex-col bg-[#F7F7F7] p-4 rounded-lg mt-4 gap-y-4">
         <div className="flex flex-row gap-4">
-          <div className="bg-white p-4 rounded-lg w-[140px] h-[140px] flex items-center justify-center">
+          <div className="bg-white p-4 rounded-lg w-[160px] h-[160px] flex items-center justify-center">
             <Avatar src={clientDetails?.clientLogo ?? undefined} alt="Client Logo" sx={{ width: 100, height: 100 }} />
           </div>
 
           <div className="flex flex-col gap-2 bg-white p-4 rounded-lg min-w-[20vw]">
             <span className="font-semibold">Details</span>
             <div className="grid grid-cols-2 gap-x-2">
+              <span className="text-[#A3A3A3]">Client Id</span>
+              <span>{clientDetails?.id}</span>
               <span className="text-[#A3A3A3]">Client</span>
               <span>{clientDetails?.clientName}</span>
               <span className="text-[#A3A3A3]">Site</span>
@@ -339,7 +411,16 @@ export default function ClientGuardDefaultsDetails() {
               </div>
             </div>
 
-            <ClientDefaultsDetailsTable selectedMetric={selectedMetric} setSelectedGuard={setSelectedGuard} />
+            <ClientDefaultsDetailsTable
+              selectedMetric={selectedMetric}
+              setSelectedGuard={setSelectedGuard}
+              absentGuards={absentGuards}
+              uniformGuards={uniformGuards}
+              alertnessGuards={alertnessGuards}
+              lateGuards={lateGuards}
+              geofenceGuards={geofenceGuards}
+              patrolGuards={patrolGuards}
+            />
           </div>
 
           {renderDetailsComponent()}

@@ -147,35 +147,18 @@ export const AbsentColumns: GridColDef[] = [
 
 export interface GuardLateItems {
   id: number;
-  name: string;
+  guardId: string;
+  guardName: string;
   photo: string;
-  dutyTime: string;
-  lateBy?: string;
+  scheduledStartTime: string;
+  scheduledEndTime: string;
+  acutalCheckInTime: string;
+  phoneNumber: string;
+  lateMinutes: number;
+  reason?: string | null;
+  dutyId: string;
+  timeDifference: number;
 }
-
-export const guardLateItems: GuardLateItems[] = [
-  {
-    id: 1,
-    name: "Michael Smith",
-    photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-    dutyTime: "08:00AM",
-    lateBy: "15 min",
-  },
-  {
-    id: 2,
-    name: "Sarah Wilson",
-    photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-    dutyTime: "09:00AM",
-    lateBy: "30 min",
-  },
-  {
-    id: 3,
-    name: "David Brown",
-    photo: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=400&fit=crop&crop=face",
-    dutyTime: "10:00AM",
-    lateBy: "45 min",
-  },
-];
 
 export const LateColumns: GridColDef[] = [
   {
@@ -196,7 +179,7 @@ export const LateColumns: GridColDef[] = [
     align: "center" as const,
   },
   {
-    field: "name",
+    field: "guardName",
     headerName: "GUARD NAME",
     flex: 1,
     minWidth: 150,
@@ -204,14 +187,14 @@ export const LateColumns: GridColDef[] = [
     align: "left" as const,
   },
   {
-    field: "dutyTime",
+    field: "scheduledStartTime",
     headerName: "DUTY TIME",
     minWidth: 120,
     headerAlign: "left" as const,
     align: "left" as const,
   },
   {
-    field: "lateBy",
+    field: "lateMinutes",
     headerName: "LATE BY",
     minWidth: 130,
     headerAlign: "center" as const,
@@ -260,16 +243,14 @@ export const UniformColumns: GridColDef[] = [
   {
     field: "id",
     headerName: "GUARD ID",
-    flex: 0.5,
     minWidth: 100,
     headerAlign: "center" as const,
     align: "center" as const,
   },
   {
-    field: "name",
+    field: "guardName",
     headerName: "GUARD NAME",
-    flex: 1,
-    minWidth: 150,
+    minWidth: 200,
     headerAlign: "left" as const,
     align: "left" as const,
   },
@@ -333,7 +314,7 @@ export const AlertnessColumns: GridColDef[] = [
     align: "center" as const,
   },
   {
-    field: "name",
+    field: "guardName",
     headerName: "GUARD NAME",
     flex: 1,
     minWidth: 150,
@@ -341,7 +322,7 @@ export const AlertnessColumns: GridColDef[] = [
     align: "left" as const,
   },
   {
-    field: "dutyTime",
+    field: "scheduledStartTime",
     headerName: "DUTY TIME",
     minWidth: 120,
     headerAlign: "left" as const,
@@ -394,12 +375,12 @@ export const GeofenceColumns: GridColDef[] = [
     headerName: "",
     renderCell: (params) => (
       <div className="flex items-center justify-center mt-1">
-        <Avatar src={params.row.photo} alt={params.row.name} />
+        <Avatar src={params.row.photo} alt={params.row.guardName} />
       </div>
     ),
   },
   {
-    field: "id",
+    field: "guardId",
     headerName: "GUARD ID",
     flex: 0.5,
     minWidth: 100,
@@ -407,7 +388,7 @@ export const GeofenceColumns: GridColDef[] = [
     align: "center" as const,
   },
   {
-    field: "name",
+    field: "guardName",
     headerName: "GUARD NAME",
     flex: 1,
     minWidth: 150,
@@ -420,6 +401,7 @@ export const GeofenceColumns: GridColDef[] = [
     minWidth: 120,
     headerAlign: "left" as const,
     align: "left" as const,
+    renderCell: (params) => <span>{params.row.dutyTime ? params.row.dutyTime.split("-")[0].trim() : "-"}</span>,
   },
   {
     field: "count",
@@ -427,6 +409,7 @@ export const GeofenceColumns: GridColDef[] = [
     minWidth: 130,
     headerAlign: "center" as const,
     align: "center" as const,
+    renderCell: (params) => <span>{params.row.sessions ? params.row.sessions.length : 0}</span>,
   },
 ];
 

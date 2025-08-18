@@ -4,7 +4,7 @@ import CalendarViewWeekOutlinedIcon from "@mui/icons-material/CalendarViewWeekOu
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { Avatar, Button, Collapse } from "@mui/material";
+import { Avatar, Button, Collapse, MenuItem, Select } from "@mui/material";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -13,6 +13,7 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import { useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useGetClientSites } from "../apis/hooks/useGetClientSites";
 import { useClientContext, type ViewType } from "../context/ClientContext";
 import { formatDate, getWeekRange } from "../utils/dateRangeUtils";
 
@@ -30,8 +31,11 @@ export default function ClientSidebar({ children }: { children: React.ReactNode 
   const location = useLocation();
   const { clientId } = useParams();
 
-  const { selectedView, setSelectedView, selectedSite, currentDate, clientDetails, isLoadingClient } =
+  const { selectedView, setSelectedView, selectedSite, setSelectedSite, currentDate, clientDetails, isLoadingClient } =
     useClientContext();
+
+  const { data: sitesResponse, isLoading: isLoadingSites } = useGetClientSites(clientId || "");
+  const sites = sitesResponse?.data || [];
 
   const toggleStats = () => {
     setStatsOpen(!statsOpen);
@@ -92,8 +96,8 @@ export default function ClientSidebar({ children }: { children: React.ReactNode 
     setSelectedView(view);
   };
 
-  const handleSiteChange = () => {
-    console.log("Site selector clicked");
+  const handleSiteChange = (event: any) => {
+    setSelectedSite(event.target.value);
   };
 
   const currentFormatted = formatDate(currentDate);
@@ -247,9 +251,29 @@ export default function ClientSidebar({ children }: { children: React.ReactNode 
       >
         {shouldShowViewButtons && (
           <div className="inline-flex justify-between w-full">
-            <Button variant="contained" size="small" onClick={handleSiteChange}>
+            <Button variant="contained" size="small" disabled={isLoadingSites}>
               <HomeWorkOutlinedIcon sx={{ mr: 1 }} />
-              {selectedSite}
+              <Select
+                value={selectedSite}
+                onChange={handleSiteChange}
+                size="small"
+                sx={{
+                  minWidth: 180,
+                  background: "transparent",
+                  border: "none",
+                  "& .MuiSelect-icon": { color: "white" },
+                  "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                }}
+                disableUnderline
+                displayEmpty
+              >
+                <MenuItem value="ALL SITES">ALL SITES</MenuItem>
+                {sites.map((site: any) => (
+                  <MenuItem key={site.id} value={site.id}>
+                    {site.siteName}
+                  </MenuItem>
+                ))}
+              </Select>
               <KeyboardArrowDownIcon sx={{ ml: 1 }} />
             </Button>
 

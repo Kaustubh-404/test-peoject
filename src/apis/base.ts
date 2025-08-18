@@ -1,4 +1,5 @@
 // File: src/api/base.ts
+import axios from "axios";
 import { authApi, guardsApi } from "../config/axios";
 
 // Auth API endpoints (port 3000)
@@ -75,95 +76,107 @@ export const guardsAPI = {
   },
 };
 
-// Legacy support - keep the original useApi for backward compatibility
 const API_BASE_URL = import.meta.env.VITE_DUTY_API_BASE_URL;
 
-const request = async <T>(endpoint: string, options: RequestInit = {}): Promise<T> => {
-  const url = `${API_BASE_URL}${endpoint}`;
+const getAuthHeaders = () => {
+  const token =
+    localStorage.getItem("token") || localStorage.getItem("authToken") || localStorage.getItem("access_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
-  const config: RequestInit = {
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers,
-    },
-    ...options,
-  };
-
-  const token = localStorage.getItem("access_token");
-  if (token) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${token}`,
-    };
-  }
-
-  const response = await fetch(url, config);
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const error = new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`) as any;
-    error.status = response.status;
-    error.code = errorData.code;
-    error.details = errorData.details;
-    throw error;
-  }
-
-  return response.json();
+const handleForbidden = () => {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("user");
+  window.location.href = "/login";
 };
 
 export const useApi = {
   get: async <T>(endpoint: string): Promise<T> => {
-    return request<T>(endpoint);
+    try {
+      const response = await axios.get<T>(`${API_BASE_URL}${endpoint}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
   },
-
   post: async <T>(endpoint: string, data?: any): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await axios.post<T>(`${API_BASE_URL}${endpoint}`, data, {
+        headers: { ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
   },
-
   postFormData: async <T>(endpoint: string, formData: FormData): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "POST",
-      body: formData,
-      headers: {},
-    });
+    try {
+      const response = await axios.post<T>(`${API_BASE_URL}${endpoint}`, formData, {
+        headers: { "Content-Type": "multipart/form-data", ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
   },
-
   put: async <T>(endpoint: string, data?: any): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "PUT",
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await axios.put<T>(`${API_BASE_URL}${endpoint}`, data, {
+        headers: { ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
   },
-
-  patch: async <T>(endpoint: string, data?: any): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "PATCH",
-      body: JSON.stringify(data),
-    });
-  },
-
-  patchFormData: async <T>(endpoint: string, formData: FormData): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "PATCH",
-      body: formData,
-      headers: {},
-    });
-  },
-
-  delete: async <T>(endpoint: string): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "DELETE",
-    });
-  },
-
   putFormData: async <T>(endpoint: string, formData: FormData): Promise<T> => {
-    return request<T>(endpoint, {
-      method: "PUT",
-      body: formData,
-      headers: {},
-    });
+    try {
+      const response = await axios.put<T>(`${API_BASE_URL}${endpoint}`, formData, {
+        headers: { "Content-Type": "multipart/form-data", ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
+  },
+  patch: async <T>(endpoint: string, data?: any): Promise<T> => {
+    try {
+      const response = await axios.patch<T>(`${API_BASE_URL}${endpoint}`, data, {
+        headers: { ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
+  },
+  patchFormData: async <T>(endpoint: string, formData: FormData): Promise<T> => {
+    try {
+      const response = await axios.patch<T>(`${API_BASE_URL}${endpoint}`, formData, {
+        headers: { "Content-Type": "multipart/form-data", ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
+  },
+  delete: async <T>(endpoint: string): Promise<T> => {
+    try {
+      const response = await axios.delete<T>(`${API_BASE_URL}${endpoint}`, {
+        headers: { ...getAuthHeaders() },
+      });
+      return response.data;
+    } catch (error: any) {
+      if (error?.response?.status === 403 || error?.response?.status === 401) handleForbidden();
+      throw error;
+    }
   },
 } as const;

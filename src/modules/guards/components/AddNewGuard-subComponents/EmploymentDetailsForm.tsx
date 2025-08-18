@@ -1,7 +1,16 @@
-import { Box, Checkbox, Divider, FormControlLabel, MenuItem, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  Checkbox,
+  CircularProgress,
+  Divider,
+  FormControlLabel,
+  MenuItem,
+  TextField,
+  Typography,
+} from "@mui/material";
 import React, { useEffect } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
-import { useSettings } from "../../../settings/context/SettingsContext";
+import { useGuardTypes, type GuardType } from "../../hooks/useGuardTypes"; // Import the new hook with type
 import LabeledInput from "../LabeledInput";
 
 // Define props interface for the component
@@ -12,16 +21,17 @@ interface EmploymentDetailsFormProps {
   setValue?: any;
 }
 
-// Define the guard type interface to match SettingsContext
-interface SecurityGuardType {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
-
 const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register, errors, watch, setValue }) => {
   const { user } = useAuth(); // Get the logged-in user
-  const { operationalSettings } = useSettings(); // Get settings for guard types
+
+  // 🔥 NEW: Use API to fetch guard types instead of hardcoded values
+  const {
+    data: guardTypes = [],
+    isLoading: isLoadingGuardTypes,
+    error: guardTypesError,
+  } = useGuardTypes(user?.agencyId || "", {
+    enabled: !!user?.agencyId, // Only fetch if we have an agency ID
+  });
 
   // Auto-fill company ID with agency ID when component mounts
   useEffect(() => {
@@ -42,14 +52,16 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
   // Get values from watch for conditional validation
   const guardType = watch ? watch("employmentDetails.guardType") || "" : "";
   const psaraCertificationStatus = watch ? watch("employmentDetails.psaraCertificationStatus") || "" : "";
-  // status field removed - now set to ACTIVE by default
   const licenseNumber = watch ? watch("employmentDetails.licenseNumber") : "";
   const dateOfIssue = watch ? watch("employmentDetails.dateOfIssue") : "";
 
-  // Check if guard type requires license
-  const requiresLicense = ["Armed Security Guard", "Personal Security Officer", "Bouncer", "Gun Man"].includes(
-    guardType
-  );
+  // 🔥 UPDATED: Check if guard type requires license based on guard type ID
+  const selectedGuardType = guardTypes?.find((type: GuardType) => type.id === guardType);
+  const requiresLicense = selectedGuardType
+    ? ["Armed Security Guard", "Personal Security Officer", "Bouncer", "Gun Man", "Gunman"].includes(
+        selectedGuardType.typeName
+      )
+    : false;
 
   // Simple phone number formatting - only allow digits and limit to 10
   const formatPhoneNumber = (value: string): string => {
@@ -68,18 +80,25 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
     }
   };
 
-  // Fallback guard types if settings not loaded
-  const fallbackGuardTypes: SecurityGuardType[] = [
-    { id: "security", name: "Security Guard", isActive: true },
-    { id: "lady", name: "Lady Guard", isActive: true },
-    { id: "gunman", name: "Gun Man", isActive: true },
-    { id: "supervisor", name: "Post Supervisor", isActive: true },
-    { id: "head", name: "Head Guard", isActive: true },
-    { id: "personal", name: "Personal Security Guard", isActive: true },
-  ];
+  // Handle guard type change - store the ID instead of name
+  const handleGuardTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedId = event.target.value;
+    if (setValue) {
+      setValue("employmentDetails.guardType", selectedId);
 
-  // Get guard types from settings or use fallback
-  const guardTypes = operationalSettings?.securityGuardTypes || fallbackGuardTypes;
+      // Log the selection for debugging
+      const selectedType = guardTypes?.find((type: GuardType) => type.id === selectedId);
+      console.log("🔧 Guard type selected:", {
+        id: selectedId,
+        typeName: selectedType?.typeName,
+        requiresLicense: selectedType
+          ? ["Armed Security Guard", "Personal Security Officer", "Bouncer", "Gun Man", "Gunman"].includes(
+              selectedType.typeName
+            )
+          : false,
+      });
+    }
+  };
 
   return (
     <Box
@@ -178,23 +197,52 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
               />
             </Box>
             <Box sx={{ width: "352px" }}>
-              <LabeledInput
-                label="Date Of Joining"
-                name="employmentDetails.dateOfJoining"
-                placeholder="DD/MM/YYYY"
+              <Typography
+                variant="body2"
+                sx={{
+                  mb: 0.5,
+                  color: hasError("dateOfJoining") ? "error.main" : "#707070",
+                }}
+              >
+                Date Of Joining <span style={{ color: "red" }}>*</span>
+              </Typography>
+              <TextField
                 type="date"
-                register={register}
-                validation={{
+                fullWidth
+                size="small"
+                error={hasError("dateOfJoining")}
+                helperText={getErrorMessage("dateOfJoining")}
+                inputProps={{
+                  placeholder: "DD/MM/YYYY",
+                  max: new Date().toISOString().split("T")[0], // Prevent future dates
+                }}
+                {...register("employmentDetails.dateOfJoining", {
                   required: "Date of Joining is required",
                   validate: {
                     notInFuture: (value: string) => {
-                      if (!value) return true;
+                      if (!value) return "Date of Joining is required";
                       return new Date(value) <= new Date() || "Date of Joining cannot be in the future";
                     },
                   },
+                })}
+                sx={{
+                  "& .MuiOutlinedInput-root": {
+                    borderRadius: "4px",
+                  },
+                  "& .MuiOutlinedInput-input": {
+                    padding: "8.5px 14px",
+                    height: "20px",
+                    cursor: "text",
+                  },
+                  "& input[type='date']": {
+                    cursor: "text",
+                    appearance: "textfield",
+                  },
+                  "& input[type='date']::-webkit-calendar-picker-indicator": {
+                    cursor: "pointer",
+                  },
+                  width: "100%",
                 }}
-                error={hasError("dateOfJoining")}
-                helperText={getErrorMessage("dateOfJoining")}
               />
             </Box>
           </Box>
@@ -272,20 +320,56 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
               />
             </Box>
             <Box sx={{ width: "352px" }}>
-              <LabeledInput
-                label="Relationship With Guard"
-                name="employmentDetails.relationshipWithGuard"
-                placeholder="Enter Relationship (Optional)"
-                register={register}
-                validation={{
+              <Typography
+                variant="body2"
+                sx={{
+                  mb: 0.5,
+                  color: hasError("relationshipWithGuard") ? "error.main" : "#707070",
+                }}
+              >
+                Relationship With Guard
+              </Typography>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                value={watch ? watch("employmentDetails.relationshipWithGuard") || "" : ""}
+                {...register("employmentDetails.relationshipWithGuard", {
                   pattern: {
                     value: /^[a-zA-Z\s-]*$/,
                     message: "Invalid characters or format",
                   },
-                }}
+                })}
                 error={hasError("relationshipWithGuard")}
-                helperText={getErrorMessage("relationshipWithGuard")}
-              />
+                helperText={
+                  getErrorMessage("relationshipWithGuard") || "Optional. Select the relationship with the guard"
+                }
+                onChange={(e) => setValue && setValue("employmentDetails.relationshipWithGuard", e.target.value)}
+                sx={{
+                  "& .MuiInputLabel-root": {
+                    fontFamily: "Mukta",
+                    fontSize: "14px",
+                  },
+                  "& .MuiSelect-select": {
+                    fontFamily: "Mukta",
+                  },
+                }}
+              >
+                <MenuItem value="">Select Relationship</MenuItem>
+                <MenuItem value="Father">Father</MenuItem>
+                <MenuItem value="Mother">Mother</MenuItem>
+                <MenuItem value="Brother">Brother</MenuItem>
+                <MenuItem value="Sister">Sister</MenuItem>
+                <MenuItem value="Brother-in-Law">Brother-in-Law</MenuItem>
+                <MenuItem value="Sister-in-Law">Sister-in-Law</MenuItem>
+                <MenuItem value="Son">Son</MenuItem>
+                <MenuItem value="Daughter">Daughter</MenuItem>
+                <MenuItem value="Spouse">Spouse</MenuItem>
+                <MenuItem value="Relative">Relative</MenuItem>
+                <MenuItem value="Neighbour">Neighbour</MenuItem>
+                <MenuItem value="Friend">Friend</MenuItem>
+                <MenuItem value="Colleague">Colleague</MenuItem>
+              </TextField>
             </Box>
           </Box>
         </Box>
@@ -313,7 +397,7 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
         <Divider />
 
         <Box sx={{ mt: 2 }}>
-          {/* Row 1 - Guard Type and PSARA Certification Status (Guard Status removed) */}
+          {/* Row 1 - Guard Type and PSARA Certification Status */}
           <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
             <Box sx={{ width: "352px" }}>
               <Typography
@@ -325,6 +409,23 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
               >
                 Guard Type <span style={{ color: "red" }}>*</span>
               </Typography>
+
+              {/* 🔥 UPDATED: Show loading state and use API data */}
+              {isLoadingGuardTypes ? (
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+                  <CircularProgress size={16} />
+                  <Typography variant="body2" sx={{ color: "#707070" }}>
+                    Loading guard types...
+                  </Typography>
+                </Box>
+              ) : guardTypesError ? (
+                <Box sx={{ p: 1, backgroundColor: "#FFEBEE", borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ color: "#D32F2F" }}>
+                    Failed to load guard types. Using fallback options.
+                  </Typography>
+                </Box>
+              ) : null}
+
               <TextField
                 select
                 fullWidth
@@ -335,7 +436,8 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
                 })}
                 error={hasError("guardType")}
                 helperText={getErrorMessage("guardType")}
-                onChange={(e) => setValue && setValue("employmentDetails.guardType", e.target.value)}
+                onChange={handleGuardTypeChange}
+                disabled={isLoadingGuardTypes}
                 sx={{
                   "& .MuiInputLabel-root": {
                     fontFamily: "Mukta",
@@ -347,11 +449,36 @@ const EmploymentDetailsForm: React.FC<EmploymentDetailsFormProps> = ({ register,
                 }}
               >
                 <MenuItem value="">Select Guard Type</MenuItem>
-                {guardTypes.map((guardTypeOption: SecurityGuardType) => (
-                  <MenuItem key={guardTypeOption.id} value={guardTypeOption.name}>
-                    {guardTypeOption.name}
-                  </MenuItem>
-                ))}
+                {/* 🔥 UPDATED: Use API data instead of hardcoded values */}
+                {guardTypes && guardTypes.length > 0
+                  ? guardTypes.map((guardTypeOption: GuardType) => (
+                      <MenuItem key={guardTypeOption.id} value={guardTypeOption.id}>
+                        {guardTypeOption.typeName}
+                      </MenuItem>
+                    ))
+                  : !isLoadingGuardTypes
+                    ? // Fallback options if API fails
+                      [
+                        <MenuItem key="security" value="security">
+                          Security Guard
+                        </MenuItem>,
+                        <MenuItem key="lady" value="lady">
+                          Lady Guard
+                        </MenuItem>,
+                        <MenuItem key="gunman" value="gunman">
+                          Gun Man
+                        </MenuItem>,
+                        <MenuItem key="supervisor" value="supervisor">
+                          Post Supervisor
+                        </MenuItem>,
+                        <MenuItem key="head" value="head">
+                          Head Guard
+                        </MenuItem>,
+                        <MenuItem key="personal" value="personal">
+                          Personal Security Guard
+                        </MenuItem>,
+                      ]
+                    : null}
               </TextField>
             </Box>
             <Box sx={{ width: "352px" }}>

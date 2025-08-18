@@ -204,8 +204,8 @@ const getCoordinatesFromData = (data: ClientSite) => {
   const validLng = typeof lng === "number" && !isNaN(lng) && lng !== 0 ? lng : 72.8777;
 
   return {
-    latitude: Number(Number(validLat).toFixed(5)),
-    longitude: Number(Number(validLng).toFixed(5)),
+    latitude: Number(validLat),
+    longitude: Number(validLng),
   };
 };
 
@@ -495,8 +495,8 @@ export const validateAndFixPatrolRoutes = (
             qrCodeUrl: undefined,
             qrlocationImageUrl: undefined,
             photoUrl: undefined,
-            latitude: Number(fallbackCoordinates.latitude.toFixed(5)),
-            longitude: Number(fallbackCoordinates.longitude.toFixed(5)),
+            latitude: Number(fallbackCoordinates.latitude),
+            longitude: Number(fallbackCoordinates.longitude),
           },
         ],
       };
@@ -511,15 +511,15 @@ export const validateAndFixPatrolRoutes = (
         console.warn(`⚠️ Fixed invalid coordinates in route ${routeIndex}, checkpoint ${checkpointIndex}`);
         return {
           ...checkpoint,
-          latitude: Number(fallbackCoordinates.latitude.toFixed(5)),
-          longitude: Number(fallbackCoordinates.longitude.toFixed(5)),
+          latitude: Number(fallbackCoordinates.latitude),
+          longitude: Number(fallbackCoordinates.longitude),
         };
       }
 
       return {
         ...checkpoint,
-        latitude: Number(Number(lat).toFixed(5)),
-        longitude: Number(Number(lng).toFixed(5)),
+        latitude: Number(Number(lat)),
+        longitude: Number(Number(lng)),
       };
     });
 

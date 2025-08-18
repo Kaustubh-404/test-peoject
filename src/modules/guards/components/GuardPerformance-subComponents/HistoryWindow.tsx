@@ -1,7 +1,10 @@
 import {
+  Alert,
   Box,
   Button,
+  CircularProgress,
   Divider,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -10,7 +13,8 @@ import {
   TableRow,
   Typography,
 } from "@mui/material";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { useGuardHistory, useGuardHistoryUtils } from "../../hooks/useGuardHistory";
 
 const cellStyle = {
   fontFamily: "Mukta",
@@ -22,58 +26,136 @@ const cellStyle = {
   padding: "16px",
 };
 
+const headerCellStyle = {
+  fontFamily: "Mukta",
+  fontWeight: 600,
+  fontSize: "14px",
+  lineHeight: "16px",
+  color: "#A3A3A3",
+  textTransform: "uppercase" as const,
+  border: "none",
+  padding: "16px",
+};
+
 /**
  * History Window Component
- * Shows guard history information with Overtime and Tenure tabs
+ * Shows guard history information with real API integration
  */
-
-// Mock data - replace with API calls
-const mockOvertimeData = [
-  {
-    id: 1,
-    startDate: "01/03/2025",
-    endDate: "02/03/2025",
-    shift: "06:00 PM - 02:00 AM",
-    client: "Epicuria",
-    site: "Nehru Place",
-    designation: "Security Guard",
-  },
-  {
-    id: 2,
-    startDate: "01/03/2020",
-    endDate: "01/03/2021",
-    shift: "08:00 AM - 06:00 PM",
-    client: "Axis Bank",
-    site: "Kalkaji F Block",
-    designation: "Security Guard",
-  },
-];
-
-const mockTenureData = [
-  {
-    id: 1,
-    tenureStart: "01/03/2021",
-    tenureEnd: "02/03/2023",
-    shift: "06:00 PM - 02:00 AM",
-    client: "Epicuria",
-    site: "Nehru Place",
-    designation: "Security Guard",
-  },
-  {
-    id: 2,
-    tenureStart: "01/03/2020",
-    tenureEnd: "01/03/2021",
-    shift: "08:00 AM - 06:00 PM",
-    client: "Axis Bank",
-    site: "Kalkaji F Block",
-    designation: "Security Guard",
-  },
-];
 
 type TabType = "OVERTIME" | "TENURE";
 
-const HistoryWindow: React.FC = () => {
+interface HistoryWindowProps {
+  guardId?: string; // Optional guard ID prop
+}
+
+const HistoryWindow: React.FC<HistoryWindowProps> = ({ guardId }) => {
   const [activeTab, setActiveTab] = useState<TabType>("OVERTIME");
+  const { sortHistory, getHistoryStats } = useGuardHistoryUtils();
+
+  // Fetch guard history using the custom hook - Fix TypeScript error
+  const {
+    data: historyRecords = [],
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isRefetching,
+  } = useGuardHistory(guardId || null, !!guardId);
+
+  // Memoized data processing
+  const processedData = useMemo(() => {
+    if (!historyRecords.length) return { overtimeRecords: [], tenureRecords: [], stats: null };
+
+    const sortedRecords = sortHistory(historyRecords);
+
+    // For now, we'll treat all records as both overtime and tenure
+    // In the future, you can categorize based on business logic
+    const overtimeRecords = sortedRecords; // All records show as overtime
+    const tenureRecords = sortedRecords; // All records show as tenure
+
+    const stats = getHistoryStats(sortedRecords);
+
+    return {
+      overtimeRecords,
+      tenureRecords,
+      stats,
+    };
+  }, [historyRecords, sortHistory, getHistoryStats]);
+
+  // Get current data based on active tab
+  const currentData = activeTab === "OVERTIME" ? processedData.overtimeRecords : processedData.tenureRecords;
+
+  // Loading skeleton component
+  const LoadingSkeleton = () => (
+    <TableContainer sx={{ background: "#FFFFFF", borderRadius: "8px" }}>
+      <Table>
+        <TableHead>
+          <TableRow sx={{ background: "#F8F9FA" }}>
+            <TableCell sx={headerCellStyle}>Start Date</TableCell>
+            <TableCell sx={headerCellStyle}>End Date</TableCell>
+            <TableCell sx={headerCellStyle}>Shift</TableCell>
+            <TableCell sx={headerCellStyle}>Client</TableCell>
+            <TableCell sx={headerCellStyle}>Site</TableCell>
+            <TableCell sx={headerCellStyle}>Designation</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {[1, 2, 3, 4, 5].map((index) => (
+            <TableRow key={index}>
+              {[1, 2, 3, 4, 5, 6].map((cellIndex) => (
+                <TableCell key={cellIndex} sx={cellStyle}>
+                  <Skeleton variant="text" width="80%" height={20} />
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  );
+
+  // Error state component
+  const ErrorState = () => (
+    <Box sx={{ p: 3, textAlign: "center" }}>
+      <Alert
+        severity="error"
+        action={
+          <Button color="inherit" size="small" onClick={() => refetch()} disabled={isRefetching}>
+            {isRefetching ? <CircularProgress size={16} /> : "Retry"}
+          </Button>
+        }
+      >
+        {error?.message || "Failed to load history data"}
+      </Alert>
+    </Box>
+  );
+
+  // No data state component
+  const NoDataState = () => (
+    <Box sx={{ p: 4, textAlign: "center" }}>
+      <Typography
+        sx={{
+          fontFamily: "Mukta",
+          fontWeight: 500,
+          fontSize: "16px",
+          color: "#707070",
+          mb: 2,
+        }}
+      >
+        No history records found
+      </Typography>
+      <Typography
+        sx={{
+          fontFamily: "Mukta",
+          fontWeight: 400,
+          fontSize: "14px",
+          color: "#9E9E9E",
+        }}
+      >
+        {guardId ? "This guard has no recorded history yet." : "Please select a guard to view history."}
+      </Typography>
+    </Box>
+  );
 
   return (
     <Box
@@ -109,6 +191,7 @@ const HistoryWindow: React.FC = () => {
               gap: "16px",
               display: "flex",
               alignItems: "center",
+              justifyContent: "space-between",
             }}
           >
             <Typography
@@ -123,6 +206,12 @@ const HistoryWindow: React.FC = () => {
             >
               History
             </Typography>
+            {isRefetching && (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <CircularProgress size={16} />
+                <Typography sx={{ fontSize: "12px", color: "#707070" }}>Refreshing...</Typography>
+              </Box>
+            )}
           </Box>
         </Box>
 
@@ -133,6 +222,9 @@ const HistoryWindow: React.FC = () => {
             border: "1px solid #FFFFFF",
           }}
         />
+
+        {/* Stats Display */}
+        {!isLoading && !isError}
 
         {/* Tab Buttons */}
         <Box
@@ -223,237 +315,87 @@ const HistoryWindow: React.FC = () => {
             background: "#FFFFFF",
             borderRadius: "8px",
             minHeight: "400px",
+            flex: 1,
+            overflow: "hidden",
           }}
         >
-          <TableContainer
-            sx={{
-              background: "#FFFFFF",
-              borderRadius: "8px",
-            }}
-          >
-            <Table>
-              <TableHead>
-                <TableRow
-                  sx={{
-                    background: "#F8F9FA",
-                  }}
-                >
-                  {activeTab === "OVERTIME" ? (
-                    <>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Start Date
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        End Date
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Shift
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Client
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Site
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Designation
-                      </TableCell>
-                    </>
-                  ) : (
-                    <>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Tenure Start
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Tenure End
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Shift
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Client
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Site
-                      </TableCell>
-                      <TableCell
-                        sx={{
-                          fontFamily: "Mukta",
-                          fontWeight: 600,
-                          fontSize: "14px",
-                          lineHeight: "16px",
-                          color: "#707070",
-                          textTransform: "uppercase",
-                          border: "none",
-                          padding: "16px",
-                        }}
-                      >
-                        Designation
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {activeTab === "OVERTIME"
-                  ? mockOvertimeData.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        sx={{
-                          "&:hover": {
-                            backgroundColor: "#F8F9FA",
-                          },
-                        }}
-                      >
-                        <TableCell sx={cellStyle}>{row.startDate}</TableCell>
-                        <TableCell sx={cellStyle}>{row.endDate}</TableCell>
-                        <TableCell sx={cellStyle}>{row.shift}</TableCell>
-                        <TableCell sx={cellStyle}>{row.client}</TableCell>
-                        <TableCell sx={cellStyle}>{row.site}</TableCell>
-                        <TableCell sx={cellStyle}>{row.designation}</TableCell>
-                      </TableRow>
-                    ))
-                  : mockTenureData.map((row) => (
-                      <TableRow
-                        key={row.id}
-                        sx={{
-                          "&:hover": {
-                            backgroundColor: "#F8F9FA",
-                          },
-                        }}
-                      >
-                        <TableCell sx={cellStyle}>{row.tenureStart}</TableCell>
-                        <TableCell sx={cellStyle}>{row.tenureEnd}</TableCell>
-                        <TableCell sx={cellStyle}>{row.shift}</TableCell>
-                        <TableCell sx={cellStyle}>{row.client}</TableCell>
-                        <TableCell sx={cellStyle}>{row.site}</TableCell>
-                        <TableCell sx={cellStyle}>{row.designation}</TableCell>
-                      </TableRow>
-                    ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
+          {/* Loading State */}
+          {isLoading && <LoadingSkeleton />}
+
+          {/* Error State */}
+          {isError && <ErrorState />}
+
+          {/* No Data State */}
+          {!isLoading && !isError && currentData.length === 0 && <NoDataState />}
+
+          {/* Data Table */}
+          {!isLoading && !isError && currentData.length > 0 && (
+            <TableContainer
+              sx={{
+                background: "#FFFFFF",
+                borderRadius: "8px",
+                height: "100%",
+              }}
+            >
+              <Table stickyHeader>
+                <TableHead>
+                  <TableRow sx={{ background: "#F8F9FA" }}>
+                    {activeTab === "OVERTIME" ? (
+                      <>
+                        <TableCell sx={headerCellStyle}>Start Date</TableCell>
+                        <TableCell sx={headerCellStyle}>End Date</TableCell>
+                        <TableCell sx={headerCellStyle}>Shift</TableCell>
+                        <TableCell sx={headerCellStyle}>Client</TableCell>
+                        <TableCell sx={headerCellStyle}>Site</TableCell>
+                        <TableCell sx={headerCellStyle}>Designation</TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell sx={headerCellStyle}>Tenure Start</TableCell>
+                        <TableCell sx={headerCellStyle}>Tenure End</TableCell>
+                        <TableCell sx={headerCellStyle}>Shift</TableCell>
+                        <TableCell sx={headerCellStyle}>Client</TableCell>
+                        <TableCell sx={headerCellStyle}>Site</TableCell>
+                        <TableCell sx={headerCellStyle}>Designation</TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {currentData.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      sx={{
+                        "&:hover": {
+                          backgroundColor: "#F8F9FA",
+                        },
+                      }}
+                    >
+                      {activeTab === "OVERTIME" ? (
+                        <>
+                          <TableCell sx={cellStyle}>{row.startDate}</TableCell>
+                          <TableCell sx={cellStyle}>{row.endDate}</TableCell>
+                          <TableCell sx={cellStyle}>{row.shift}</TableCell>
+                          <TableCell sx={cellStyle}>{row.client}</TableCell>
+                          <TableCell sx={cellStyle}>{row.site}</TableCell>
+                          <TableCell sx={cellStyle}>{row.designation}</TableCell>
+                        </>
+                      ) : (
+                        <>
+                          <TableCell sx={cellStyle}>{row.startDate}</TableCell>
+                          <TableCell sx={cellStyle}>{row.endDate}</TableCell>
+                          <TableCell sx={cellStyle}>{row.shift}</TableCell>
+                          <TableCell sx={cellStyle}>{row.client}</TableCell>
+                          <TableCell sx={cellStyle}>{row.site}</TableCell>
+                          <TableCell sx={cellStyle}>{row.designation}</TableCell>
+                        </>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
         </Box>
       </Box>
     </Box>

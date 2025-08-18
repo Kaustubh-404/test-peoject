@@ -172,6 +172,13 @@ const AddNewOfficer: React.FC = () => {
           "personalDetails.maritalStatus",
         ];
 
+        // Check if profile photo is uploaded (mandatory)
+        const profilePhoto = watch("personalDetails.profilePhoto");
+        if (!profilePhoto) {
+          alert("Please upload a profile photo before proceeding.");
+          return false;
+        }
+
         // Add spouse validation if married
         if (maritalStatus === "Married") {
           fieldsToValidate.push("personalDetails.spouseName");

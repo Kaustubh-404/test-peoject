@@ -1,12 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { getClientIncidentReport } from "../services/incidentReport";
 
-export const useClientIncidentReport = (params: {
-  clientId: string;
-  status: "OPEN" | "CLOSED";
-  startDate?: string;
-  endDate?: string;
-}) => {
+export const useClientIncidentReport = (params: { clientId: string; startDate?: string; endDate?: string }) => {
   return useQuery({
     queryKey: ["clientIncidentReport", params],
     queryFn: () => getClientIncidentReport(params),

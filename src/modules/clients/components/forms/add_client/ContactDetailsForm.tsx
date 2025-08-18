@@ -1,6 +1,6 @@
 import LabeledInput from "@components/LabeledInput";
-import { Divider } from "@mui/material";
-import { useEffect } from "react";
+import { Button, Divider } from "@mui/material";
+import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 // Form interface that matches your existing UI structure
@@ -39,6 +39,8 @@ export default function ContactDetailsForm() {
     setError,
     clearErrors,
   } = useFormContext<ClientFormData>();
+  const [showContactPerson2, setShowContactPerson2] = useState(false);
+
   useEffect(() => {
     const subscription = watch((values, { name }) => {
       const contactPhone = values?.contactDetails?.contactPerson?.phoneNumber;
@@ -130,70 +132,65 @@ export default function ContactDetailsForm() {
           helperText={errors.contactDetails?.contactPerson?.email?.message}
         />
       </div>
-
-      {/* Emergency Contact Section */}
-      <div className="mt-6 flex flex-col gap-2">
-        <h3>EMERGENCY CONTACT</h3>
-        <Divider />
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
-          <LabeledInput
-            label="Full Name"
-            name="contactDetails.emergencyContact.fullName"
-            placeholder="Enter Full Name"
-            required
-            register={register}
-            validation={{
-              required: "Full Name is required",
-            }}
-            error={!!errors.contactDetails?.emergencyContact?.fullName}
-            helperText={errors.contactDetails?.emergencyContact?.fullName?.message}
-          />
-          <LabeledInput
-            label="Designation"
-            name="contactDetails.emergencyContact.desgination"
-            placeholder="Enter Designation"
-            required
-            register={register}
-            validation={{
-              required: "Designation is required",
-            }}
-            error={!!errors.contactDetails?.emergencyContact?.desgination}
-            helperText={errors.contactDetails?.emergencyContact?.desgination?.message}
-          />
-          <LabeledInput
-            label="Phone Number"
-            name="contactDetails.emergencyContact.phoneNumber"
-            placeholder="Enter Phone Number"
-            required
-            register={register}
-            validation={{
-              required: "Phone Number is required",
-              pattern: {
-                value: /^\+91[0-9]{10}$/,
-                message: "Please enter a valid Indian phone number starting with +91 and 10 digits",
-              },
-            }}
-            error={!!errors.contactDetails?.emergencyContact?.phoneNumber}
-            helperText={errors.contactDetails?.emergencyContact?.phoneNumber?.message}
-          />
-          <LabeledInput
-            label="Email"
-            name="contactDetails.emergencyContact.email"
-            placeholder="Enter Email Address"
-            required
-            register={register}
-            validation={{
-              required: "Email is required",
-              pattern: {
-                value: /\S+@\S+\.\S+/,
-                message: "Please enter a valid email address",
-              },
-            }}
-            error={!!errors.contactDetails?.emergencyContact?.email}
-            helperText={errors.contactDetails?.emergencyContact?.email?.message}
-          />
-        </div>
+      <div className="mt-4">
+        <Button type="button" variant="contained" onClick={() => setShowContactPerson2((prev) => !prev)}>
+          {showContactPerson2 ? "Remove additional contact" : "Add another contact"}
+        </Button>
       </div>
+      {showContactPerson2 && (
+        <div className="mt-6 flex flex-col gap-2">
+          <h3>CONTACT PERSON 2 (Optional)</h3>
+          <Divider />
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
+            <LabeledInput
+              label="Full Name"
+              name="contactDetails.emergencyContact.fullName"
+              placeholder="Enter Full Name"
+              register={register}
+              validation={{}}
+              error={!!errors.contactDetails?.emergencyContact?.fullName}
+              helperText={errors.contactDetails?.emergencyContact?.fullName?.message}
+            />
+            <LabeledInput
+              label="Designation"
+              name="contactDetails.emergencyContact.desgination"
+              placeholder="Enter Designation"
+              register={register}
+              validation={{}}
+              error={!!errors.contactDetails?.emergencyContact?.desgination}
+              helperText={errors.contactDetails?.emergencyContact?.desgination?.message}
+            />
+            <LabeledInput
+              label="Phone Number"
+              name="contactDetails.emergencyContact.phoneNumber"
+              placeholder="Enter Phone Number"
+              register={register}
+              validation={{
+                pattern: {
+                  value: /^\+91[0-9]{10}$/,
+                  message: "Please enter a valid Indian phone number starting with +91 and 10 digits",
+                },
+              }}
+              error={!!errors.contactDetails?.emergencyContact?.phoneNumber}
+              helperText={errors.contactDetails?.emergencyContact?.phoneNumber?.message}
+            />
+            <LabeledInput
+              label="Email"
+              name="contactDetails.emergencyContact.email"
+              placeholder="Enter Email Address"
+              register={register}
+              validation={{
+                pattern: {
+                  value: /\S+@\S+\.\S+/,
+                  message: "Please enter a valid email address",
+                },
+              }}
+              error={!!errors.contactDetails?.emergencyContact?.email}
+              helperText={errors.contactDetails?.emergencyContact?.email?.message}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
