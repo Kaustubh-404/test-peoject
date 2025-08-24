@@ -31,6 +31,7 @@ interface SetUpRoutePortalProps {
 interface CheckpointFile {
   qrFile: File | null;
   photoFile: File | null;
+  locationFile: File | null;
 }
 
 const style = {
@@ -49,7 +50,9 @@ const style = {
 
 export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClose }) => {
   const [patrolFrequency, setPatrolFrequency] = useState<boolean>(false);
-  const [checkpointFiles, setCheckpointFiles] = useState<CheckpointFile[]>([{ qrFile: null, photoFile: null }]);
+  const [checkpointFiles, setCheckpointFiles] = useState<CheckpointFile[]>([
+    { qrFile: null, photoFile: null, locationFile: null },
+  ]);
   const [activeRouteIndex, setActiveRouteIndex] = useState<number>(0);
   const [savePatrolRoute, setSavePatrolRoute] = useState<boolean>(false);
 
@@ -118,6 +121,14 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
     }
   };
 
+  const handleLocationUpload = (file: File | null, index: number) => {
+    setCheckpointFiles((prev) => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], locationFile: file };
+      return updated;
+    });
+  };
+
   const handleCheckpointTypeChange = (checked: boolean, index: number) => {
     setValue(
       `patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}.type`,
@@ -135,7 +146,7 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
       qrCode: "",
       photo: "",
     });
-    setCheckpointFiles((prev) => [...prev, { qrFile: null, photoFile: null }]);
+    setCheckpointFiles((prev) => [...prev, { qrFile: null, photoFile: null, locationFile: null }]);
   };
 
   const removeCheckpointHandler = (index: number) => {
@@ -166,7 +177,7 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
       ],
     });
     setActiveRouteIndex(newRouteIndex);
-    setCheckpointFiles([{ qrFile: null, photoFile: null }]);
+    setCheckpointFiles([{ qrFile: null, photoFile: null, locationFile: null }]);
     setPatrolFrequency(false);
   };
 
@@ -175,7 +186,7 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
     const currentRoute = routeFields[index];
     if (currentRoute) {
       const checkpointCount = watch(`patroling.patrolRouteDetails.${index}.patrolCheckpoints`)?.length || 1;
-      setCheckpointFiles(Array(checkpointCount).fill({ qrFile: null, photoFile: null }));
+      setCheckpointFiles(Array(checkpointCount).fill({ qrFile: null, photoFile: null, locationFile: null }));
     }
     const frequencyType = watch(`patroling.patrolRouteDetails.${index}.patrolFrequency.type`);
     setPatrolFrequency(frequencyType === "count");
@@ -258,37 +269,146 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
             />
           </div>
 
-          {!isPhotoType && checkpointFiles[index]?.qrFile && (
-            <div>
-              <span className="text-sm mb-1 text-[#707070]">QR Code</span>
-              <img
-                src={URL.createObjectURL(checkpointFiles[index].qrFile!)}
-                className="h-24 w-24 object-cover rounded border"
-                alt={`QR Code ${index + 1}`}
-              />
+          {/* Show QR code images for QR type checkpoints */}
+          {!isPhotoType && (
+            <div className="flex flex-row gap-4">
+              {/* QR Code Image */}
+              {checkpointFiles[index]?.qrFile && (
+                <div>
+                  <span className="text-sm mb-1 text-[#707070]">QR Code</span>
+                  <div className="h-24 w-24 border rounded bg-gray-100 flex items-center justify-center relative">
+                    <img
+                      src={URL.createObjectURL(checkpointFiles[index].qrFile!)}
+                      className="h-20 w-20 object-cover rounded"
+                      alt={`QR Code ${index + 1}`}
+                    />
+                    <button
+                      onClick={() => {
+                        setValue(
+                          `patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}.qrCode`,
+                          ""
+                        );
+                        setCheckpointFiles((prev) => {
+                          const updated = [...prev];
+                          updated[index] = { ...updated[index], qrFile: null };
+                          return updated;
+                        });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* QR Location Image */}
+              {checkpointFiles[index]?.locationFile && (
+                <div>
+                  <span className="text-sm mb-1 text-[#707070]">QR Location</span>
+                  <div className="h-24 w-24 border rounded bg-gray-100 flex items-center justify-center relative">
+                    <img
+                      src={URL.createObjectURL(checkpointFiles[index].locationFile!)}
+                      className="h-20 w-20 object-cover rounded"
+                      alt={`QR Location ${index + 1}`}
+                    />
+                    <button
+                      onClick={() => {
+                        setCheckpointFiles((prev) => {
+                          const updated = [...prev];
+                          updated[index] = { ...updated[index], locationFile: null };
+                          return updated;
+                        });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {isPhotoType && checkpointFiles[index]?.photoFile && (
-            <div>
-              <span className="text-sm mb-1 text-[#707070]">Photo</span>
-              <img
-                src={URL.createObjectURL(checkpointFiles[index].photoFile!)}
-                className="h-24 w-24 object-cover rounded border"
-                alt={`Photo ${index + 1}`}
-              />
+          {/* Show photo image for photo type checkpoints */}
+          {isPhotoType && (
+            <div className="flex flex-row gap-4">
+              {checkpointFiles[index]?.photoFile && (
+                <div>
+                  <span className="text-sm mb-1 text-[#707070]">Checkpoint Photo</span>
+                  <div className="h-24 w-24 border rounded bg-gray-100 flex items-center justify-center relative">
+                    <img
+                      src={URL.createObjectURL(checkpointFiles[index].photoFile!)}
+                      className="h-20 w-20 object-cover rounded"
+                      alt={`Photo ${index + 1}`}
+                    />
+                    <button
+                      onClick={() => {
+                        setValue(
+                          `patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}.photo`,
+                          ""
+                        );
+                        setCheckpointFiles((prev) => {
+                          const updated = [...prev];
+                          updated[index] = { ...updated[index], photoFile: null };
+                          return updated;
+                        });
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 transition-colors"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          <div className="w-[10vw] h-20">
-            <FileUpload
-              label={isPhotoType ? "Photo Of Checkpoint" : "Photo Of QR Location"}
-              maxSize={2}
-              acceptedFileTypes="image/*"
-              onFileChange={(file) => (isPhotoType ? handlePhotoUpload(file, index) : handleQrUpload(file, index))}
-              placeholder={isPhotoType ? "Click to upload Photo" : "Click to upload QR Photo"}
-            />
-          </div>
+          {/* Upload section for QR type */}
+          {!isPhotoType && (
+            <div className="flex flex-row gap-2">
+              {/* Show QR Code upload only if no QR code exists */}
+              {!checkpointFiles[index]?.qrFile && (
+                <div className="w-[10vw] h-20">
+                  <FileUpload
+                    label="QR Code Image"
+                    maxSize={2}
+                    acceptedFileTypes="image/*"
+                    onFileChange={(file) => handleQrUpload(file, index)}
+                    placeholder="Upload QR Code"
+                  />
+                </div>
+              )}
+              {/* Show QR Location upload only if no QR location image exists */}
+              {!checkpointFiles[index]?.locationFile && (
+                <div className="w-[10vw] h-20">
+                  <FileUpload
+                    label="QR Location Photo"
+                    maxSize={2}
+                    acceptedFileTypes="image/*"
+                    onFileChange={(file) => handleLocationUpload(file, index)}
+                    placeholder="Upload Location Photo"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Upload section for photo type */}
+          {isPhotoType && !checkpointFiles[index]?.photoFile && (
+            <div className="w-[10vw] h-20">
+              <FileUpload
+                label="Checkpoint Photo"
+                maxSize={2}
+                acceptedFileTypes="image/*"
+                onFileChange={(file) => handlePhotoUpload(file, index)}
+                placeholder="Upload Photo"
+              />
+            </div>
+          )}
 
           <div className="flex flex-row mt-auto">
             <div className="flex flex-col">
@@ -349,173 +469,7 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
     </div>
   );
 
-  const NewPatrolForm = () => {
-    const showSidebar = routeFields.length > 1;
-
-    return (
-      <div className={`flex ${showSidebar ? "gap-0" : ""} h-full`}>
-        {showSidebar && <Sidebar />}
-        <div className={`flex-1 ${showSidebar ? "p-4 bg-[#F1F7FE] rounded-r-lg" : ""}`}>
-          {showSidebar && <h2 className="text-2xl font-semibold text-[#2A77D5] mb-2">New Patrol Route</h2>}
-          <div className="flex flex-row gap-6">
-            <div className="flex flex-col gap-2 min-w-[300px]">
-              <span className="text-[#707070] font-semibold text-sm">
-                Patrol Route Details{" "}
-                {showSidebar &&
-                  `- ${watch(`patroling.patrolRouteDetails.${activeRouteIndex}.name`) || `Route ${activeRouteIndex + 1}`}`}
-              </span>
-              <Divider />
-              <div className="flex flex-col gap-4 mt-2">
-                <LabeledInput
-                  label="Patrol Route Name"
-                  name={`patroling.patrolRouteDetails.${activeRouteIndex}.name`}
-                  placeholder="Enter Patrol Route"
-                  required
-                  register={register}
-                  validation={{
-                    required: "Patrol Route Name is required",
-                  }}
-                  error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.name}
-                  helperText={errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.name?.message}
-                />
-
-                <LabeledInput
-                  label="Enter Patrol Route Code (Optional)"
-                  name={`patroling.patrolRouteDetails.${activeRouteIndex}.routeCode`}
-                  placeholder="Enter Route Code"
-                  register={register}
-                />
-
-                <div>
-                  <Typography
-                    sx={{
-                      typography: {
-                        fontSize: "12px",
-                      },
-                      mb: 0.5,
-                      color: "#707070",
-                    }}
-                  >
-                    Patrol Frequency
-                  </Typography>
-                  <CustomSwitch
-                    checked={patrolFrequency}
-                    onChange={(checked: boolean) => {
-                      setPatrolFrequency(checked);
-                      setValue(
-                        `patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.type`,
-                        checked ? "count" : "time",
-                        { shouldDirty: true, shouldValidate: true }
-                      );
-
-                      if (checked) {
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 0);
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`, 1);
-                      } else {
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`, 0);
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 1);
-                        setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
-                      }
-                    }}
-                    labelOff="Time"
-                    labelOn="Count"
-                  />
-                </div>
-
-                {!patrolFrequency && (
-                  <div className="flex flex-row gap-4">
-                    <LabeledInput
-                      label="Hours"
-                      name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`}
-                      placeholder="Enter Hours"
-                      type="number"
-                      register={register}
-                      validation={{
-                        min: { value: 0, message: "Hours cannot be negative" },
-                        max: { value: 23, message: "Hours cannot exceed 23" },
-                      }}
-                      error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.hours}
-                      helperText={
-                        errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.hours?.message
-                      }
-                    />
-                    <LabeledInput
-                      label="Minutes"
-                      name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`}
-                      placeholder="Enter Minutes"
-                      type="number"
-                      register={register}
-                      validation={{
-                        min: { value: 0, message: "Minutes cannot be negative" },
-                        max: { value: 59, message: "Minutes cannot exceed 59" },
-                      }}
-                      error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.minutes}
-                      helperText={
-                        errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.minutes?.message
-                      }
-                    />
-                  </div>
-                )}
-
-                {patrolFrequency && (
-                  <LabeledInput
-                    label="Number of Patrol Rounds"
-                    name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`}
-                    placeholder="Enter number of rounds"
-                    type="number"
-                    register={register}
-                    validation={{
-                      required: "Number of patrol rounds is required",
-                      min: { value: 1, message: "At least 1 patrol round is required" },
-                    }}
-                    error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.count}
-                    helperText={
-                      errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.count?.message
-                    }
-                  />
-                )}
-
-                <LabeledInput
-                  label="No. of Patrol Rounds In A Shift"
-                  name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.numberOfPatrols`}
-                  placeholder="Enter rounds in shift"
-                  required
-                  register={register}
-                  validation={{
-                    required: "Number of patrols is required",
-                    min: { value: 1, message: "At least 1 patrol round is required" },
-                  }}
-                  error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.numberOfPatrols}
-                  helperText={
-                    errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.numberOfPatrols?.message
-                  }
-                  type="number"
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-col bg-[#F7F7F7] p-4 rounded-lg gap-2 w-full">
-              <span className="text-[#707070] font-semibold text-sm">Patrol Checkpoints</span>
-              <Divider sx={{ borderColor: "#ffffff" }} />
-
-              <div className="flex flex-col mt-2">
-                {checkpointFields.map((field, index) => renderCheckpoint(field, index))}
-              </div>
-
-              <Button variant="contained" className="mt-4 w-fit" onClick={addCheckpoint} startIcon={<AddIcon />}>
-                ADD CHECKPOINT
-              </Button>
-            </div>
-          </div>
-          <Button onClick={handlePatrolRouteSave} variant="contained" sx={{ mx: "auto", mt: 4 }}>
-            <Check /> SAVE PATROL ROUTE
-          </Button>
-        </div>
-      </div>
-    );
-  };
-
+  const showSidebar = routeFields.length > 1;
   const currentRouteName =
     watch(`patroling.patrolRouteDetails.${activeRouteIndex}.name`) || `Route ${activeRouteIndex + 1}`;
   const currentCheckpointCount = checkpointFields.length;
@@ -556,7 +510,171 @@ export const SetUpRoutePortal: React.FC<SetUpRoutePortalProps> = ({ open, onClos
             </div>
           </div>
         ) : (
-          <NewPatrolForm />
+          <div className={`flex ${showSidebar ? "gap-0" : ""} h-full`}>
+            {showSidebar && <Sidebar />}
+            <div className={`flex-1 ${showSidebar ? "p-4 bg-[#F1F7FE] rounded-r-lg" : ""}`}>
+              {showSidebar && <h2 className="text-2xl font-semibold text-[#2A77D5] mb-2">New Patrol Route</h2>}
+              <div className="flex flex-row gap-6">
+                <div className="flex flex-col gap-2 min-w-[300px]">
+                  <span className="text-[#707070] font-semibold text-sm">
+                    Patrol Route Details{" "}
+                    {showSidebar &&
+                      `- ${watch(`patroling.patrolRouteDetails.${activeRouteIndex}.name`) || `Route ${activeRouteIndex + 1}`}`}
+                  </span>
+                  <Divider />
+                  <div className="flex flex-col gap-4 mt-2">
+                    <LabeledInput
+                      key={`route-name-${activeRouteIndex}`}
+                      label="Patrol Route Name"
+                      name={`patroling.patrolRouteDetails.${activeRouteIndex}.name`}
+                      placeholder="Enter Patrol Route"
+                      required
+                      register={register}
+                      validation={{
+                        required: "Patrol Route Name is required",
+                      }}
+                      error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.name}
+                      helperText={errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.name?.message}
+                    />
+
+                    <LabeledInput
+                      key={`route-code-${activeRouteIndex}`}
+                      label="Enter Patrol Route Code (Optional)"
+                      name={`patroling.patrolRouteDetails.${activeRouteIndex}.routeCode`}
+                      placeholder="Enter Route Code"
+                      register={register}
+                    />
+
+                    <div>
+                      <Typography
+                        sx={{
+                          typography: {
+                            fontSize: "12px",
+                          },
+                          mb: 0.5,
+                          color: "#707070",
+                        }}
+                      >
+                        Patrol Frequency
+                      </Typography>
+                      <CustomSwitch
+                        checked={patrolFrequency}
+                        onChange={(checked: boolean) => {
+                          setPatrolFrequency(checked);
+                          setValue(
+                            `patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.type`,
+                            checked ? "count" : "time",
+                            { shouldDirty: true, shouldValidate: true }
+                          );
+
+                          if (checked) {
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 0);
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`, 1);
+                          } else {
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`, 0);
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 1);
+                            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
+                          }
+                        }}
+                        labelOff="Time"
+                        labelOn="Count"
+                      />
+                    </div>
+
+                    {!patrolFrequency && (
+                      <div className="flex flex-row gap-4">
+                        <LabeledInput
+                          label="Hours"
+                          name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`}
+                          placeholder="Enter Hours"
+                          type="number"
+                          register={register}
+                          validation={{
+                            min: { value: 0, message: "Hours cannot be negative" },
+                            max: { value: 23, message: "Hours cannot exceed 23" },
+                          }}
+                          error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.hours}
+                          helperText={
+                            errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.hours?.message
+                          }
+                        />
+                        <LabeledInput
+                          label="Minutes"
+                          name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`}
+                          placeholder="Enter Minutes"
+                          type="number"
+                          register={register}
+                          validation={{
+                            min: { value: 0, message: "Minutes cannot be negative" },
+                            max: { value: 59, message: "Minutes cannot exceed 59" },
+                          }}
+                          error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.minutes}
+                          helperText={
+                            errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.minutes?.message
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {patrolFrequency && (
+                      <LabeledInput
+                        label="Number of Patrol Rounds"
+                        name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.count`}
+                        placeholder="Enter number of rounds"
+                        type="number"
+                        register={register}
+                        validation={{
+                          required: "Number of patrol rounds is required",
+                          min: { value: 1, message: "At least 1 patrol round is required" },
+                        }}
+                        error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.count}
+                        helperText={
+                          errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.count?.message
+                        }
+                      />
+                    )}
+
+                    <LabeledInput
+                      label="No. of Patrol Rounds In A Shift"
+                      name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.numberOfPatrols`}
+                      placeholder="Enter rounds in shift"
+                      required
+                      register={register}
+                      validation={{
+                        required: "Number of patrols is required",
+                        min: { value: 1, message: "At least 1 patrol round is required" },
+                      }}
+                      error={
+                        !!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.numberOfPatrols
+                      }
+                      helperText={
+                        errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.numberOfPatrols
+                          ?.message
+                      }
+                      type="number"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col bg-[#F7F7F7] p-4 rounded-lg gap-2 w-full">
+                  <span className="text-[#707070] font-semibold text-sm">Patrol Checkpoints</span>
+                  <Divider sx={{ borderColor: "#ffffff" }} />
+
+                  <div className="flex flex-col mt-2">
+                    {checkpointFields.map((field, index) => renderCheckpoint(field, index))}
+                  </div>
+
+                  <Button variant="contained" className="mt-4 w-fit" onClick={addCheckpoint} startIcon={<AddIcon />}>
+                    ADD CHECKPOINT
+                  </Button>
+                </div>
+              </div>
+              <Button onClick={handlePatrolRouteSave} variant="contained" sx={{ mx: "auto", mt: 4 }}>
+                <Check /> SAVE PATROL ROUTE
+              </Button>
+            </div>
+          </div>
         )}
       </Box>
     </Modal>

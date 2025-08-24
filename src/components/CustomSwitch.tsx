@@ -27,7 +27,7 @@ export const CustomSwitch = ({
   };
 
   return (
-    <div className="flex items-center select-none">
+    <div className="flex items-center select-none whitespace-nowrap">
       {/* Off Label */}
       <span
         className={`

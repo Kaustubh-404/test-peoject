@@ -140,7 +140,7 @@ function App() {
                       <Route path="/incidents/:incidentId/details" element={<IncidentDetailsPage />} />
                       <Route path="/tasks/:taskId/details" element={<TaskDetailsPage />} />
                       <Route path="/add-officer" element={<AddNewOfficer />} />
-                      <Route path="/add-task" element={<AddTaskFlow />} />
+                      <Route path="/officers/:officerName/add-task" element={<AddTaskFlow />} />
                     </Route>
                   </Routes>
                 </BrowserRouter>

@@ -93,7 +93,7 @@ const OfficerClientSitesWindow: React.FC = () => {
 
   // Handle Add Task button click
   const handleAddNewTask = () => {
-    navigate("/add-task");
+    navigate(`/officers/${officerName}/add-task`);
   };
 
   // Get task icon based on type

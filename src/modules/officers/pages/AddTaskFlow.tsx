@@ -1,4 +1,4 @@
-// AddTaskFlow.tsx - Main Page Component (not modal/overlay)
+// File: src/modules/officers/pages/AddTaskFlow.tsx - Final errorless version
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckOutlinedIcon from "@mui/icons-material/CheckOutlined";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -7,34 +7,13 @@ import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
 import { Alert, Box, Button, CircularProgress, Dialog, DialogContent, Snackbar, Typography } from "@mui/material";
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import TaskDeadlineForm from "../components/AddTaskForm/TaskDeadline";
 import TaskLocationForm from "../components/AddTaskForm/TaskLocation";
 import TaskSelectionForm from "../components/AddTaskForm/TaskSelection";
 import CustomProgressStepper from "../components/ProgressStepper";
-
-// Types
-interface TaskFormData {
-  taskLocation: {
-    selectedClients: number[];
-    customLocation?: string;
-  };
-  taskSelection: {
-    selectedTasks: string[];
-  };
-  taskDeadline: {
-    dueDate: string;
-    dueTime: string;
-    amPm: "AM" | "PM";
-  };
-}
-
-interface Client {
-  id: number;
-  name: string;
-  companyId: string;
-  logo?: string;
-}
+import { useOfficers } from "../context/OfficerContext";
+import { taskService, type TaskFormData } from "../service/taskService";
 
 // Steps for the form
 const steps = [
@@ -44,18 +23,25 @@ const steps = [
 ];
 
 const AddTaskFlow: React.FC = () => {
+  const { officerName } = useParams<{ officerName: string }>();
+  const navigate = useNavigate();
+  const { getOfficerByName } = useOfficers();
+
+  // Get officer data - this gives us the guardId we need for API calls
+  const officerData = getOfficerByName(officerName || "");
+  const areaOfficerId = officerData?.guardId || null; // This is what we need for the API
+
   const [currentStep, setCurrentStep] = useState(1);
   const [saveProgressOpen, setSaveProgressOpen] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loadingClients, setLoadingClients] = useState(false);
-  const navigate = useNavigate();
 
   const [formData, setFormData] = useState<TaskFormData>({
     taskLocation: {
-      selectedClients: [],
+      selectedSites: [],
+      customLocation: undefined,
+      isCustomLocation: false,
     },
     taskSelection: {
       selectedTasks: [],
@@ -67,55 +53,56 @@ const AddTaskFlow: React.FC = () => {
     },
   });
 
-  // API Functions
-  const fetchClients = async (): Promise<Client[]> => {
-    try {
-      setLoadingClients(true);
-      // Replace with actual API call
-      // const response = await api.get('/clients');
-      // return response.data;
+  // Load draft on component mount
+  useEffect(() => {
+    const loadDraft = () => {
+      const draft = taskService.loadDraft();
+      if (draft) {
+        setFormData(draft);
+        console.log("📥 Loaded existing draft");
+      }
+    };
 
-      // Mock data for now
-      const mockClients: Client[] = [
-        { id: 1, name: "Epicuria, Nehru Place", companyId: "EPI001" },
-        { id: 2, name: "Axis Bank ATM, Vasant Vihar", companyId: "AXB002" },
-        { id: 3, name: "Haldirams, Alaknanda Road", companyId: "HAL003" },
-        { id: 4, name: "Axis Bank, Alaknanda Road", companyId: "AXB004" },
-        { id: 5, name: "Hairmasters, GK2", companyId: "HAI005" },
-        { id: 6, name: "HDFC Bank, GK1", companyId: "HDF006" },
-        { id: 7, name: "Metro Mall, CP", companyId: "MET007" },
-        { id: 8, name: "Phoenix Mall, Gurgaon", companyId: "PHO008" },
-      ];
+    loadDraft();
+  }, []);
 
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate API delay
-      return mockClients;
-    } catch (error) {
-      console.error("Error fetching clients:", error);
-      throw new Error("Failed to fetch clients");
-    } finally {
-      setLoadingClients(false);
-    }
-  };
+  // Check if we have officer data and guardId
+  if (!officerData || !areaOfficerId) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Alert severity="error">Officer not found or missing data. Cannot create task.</Alert>
+      </div>
+    );
+  }
 
   const createTask = async (taskData: TaskFormData) => {
     try {
       setIsCreating(true);
       setCreateError(null);
 
-      console.log("Creating task with data:", taskData);
+      console.log("🔄 Creating task for officer:", {
+        officerName: officerData.name,
+        guardId: areaOfficerId,
+        taskData,
+      });
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Use the real task service
+      const result = await taskService.createTask(taskData, areaOfficerId);
+
+      console.log("✅ Task created successfully:", result);
+
+      // Clear draft after successful creation
+      taskService.clearDraft();
 
       setSuccessOpen(true);
 
       // Auto-redirect after 3 seconds
       setTimeout(() => {
-        navigate("/officers");
+        navigate(`/officers/${officerName}/performance`);
       }, 3000);
-    } catch (error) {
-      console.error("Task creation error:", error);
-      setCreateError("Failed to create task. Please try again.");
+    } catch (error: any) {
+      console.error("❌ Task creation error:", error);
+      setCreateError(error.message || "Failed to create task. Please try again.");
     } finally {
       setIsCreating(false);
     }
@@ -123,47 +110,22 @@ const AddTaskFlow: React.FC = () => {
 
   const saveDraft = async (draftData: TaskFormData) => {
     try {
-      // Replace with actual API call
-      // const response = await api.post('/tasks/draft', draftData);
-
-      // For now, save to localStorage
-      localStorage.setItem("taskDraft", JSON.stringify(draftData));
-      console.log("Draft saved to localStorage");
+      await taskService.saveDraft(draftData);
+      console.log("✅ Draft saved successfully");
     } catch (error) {
-      console.error("Error saving draft:", error);
+      console.error("❌ Error saving draft:", error);
     }
   };
-
-  // Load clients on component mount
-  useEffect(() => {
-    const loadClients = async () => {
-      try {
-        const clientsData = await fetchClients();
-        setClients(clientsData);
-      } catch (error) {
-        setCreateError("Failed to load clients");
-      }
-    };
-    loadClients();
-  }, []);
-
-  // Load draft if exists
-  useEffect(() => {
-    const savedDraft = localStorage.getItem("taskDraft");
-    if (savedDraft) {
-      try {
-        const draftData = JSON.parse(savedDraft);
-        setFormData(draftData);
-      } catch (error) {
-        console.error("Error loading draft:", error);
-      }
-    }
-  }, []);
 
   const validateStep = () => {
     switch (currentStep) {
       case 1:
-        return formData.taskLocation.selectedClients.length > 0;
+        // Check location selection
+        if (formData.taskLocation.isCustomLocation) {
+          return !!formData.taskLocation.customLocation?.trim();
+        } else {
+          return formData.taskLocation.selectedSites.length > 0;
+        }
       case 2:
         return formData.taskSelection.selectedTasks.length > 0;
       case 3:
@@ -179,6 +141,8 @@ const AddTaskFlow: React.FC = () => {
       return;
     }
 
+    // Auto-save as draft when progressing
+    await saveDraft(formData);
     setSaveProgressOpen(true);
   };
 
@@ -192,8 +156,10 @@ const AddTaskFlow: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!validateStep()) {
-      setCreateError("Please complete all required fields");
+    // Final validation
+    const validationErrors = taskService.validateFormData(formData);
+    if (validationErrors.length > 0) {
+      setCreateError(`Please fix the following issues: ${validationErrors.join(", ")}`);
       return;
     }
 
@@ -202,14 +168,18 @@ const AddTaskFlow: React.FC = () => {
 
   const handleDiscard = () => {
     if (window.confirm("Are you sure you want to discard your changes?")) {
-      localStorage.removeItem("taskDraft");
-      navigate("/officers");
+      taskService.clearDraft();
+      navigate(`/officers/${officerName}/performance`);
     }
   };
 
   const handleSaveDraft = async () => {
-    await saveDraft(formData);
-    alert("Draft saved successfully!");
+    const success = await taskService.saveDraft(formData);
+    if (success) {
+      alert("Draft saved successfully!");
+    } else {
+      alert("Failed to save draft. Please try again.");
+    }
   };
 
   const updateFormData = (section: keyof TaskFormData, data: any) => {
@@ -221,7 +191,7 @@ const AddTaskFlow: React.FC = () => {
 
   const handleSuccessClose = () => {
     setSuccessOpen(false);
-    navigate("/officers");
+    navigate(`/officers/${officerName}/performance`);
   };
 
   // Disabled submit button style
@@ -251,7 +221,7 @@ const AddTaskFlow: React.FC = () => {
         anchorOrigin={{ vertical: "top", horizontal: "center" }}
       >
         <Alert onClose={handleSuccessClose} severity="success" sx={{ width: "100%" }}>
-          🎉 Task created successfully! Redirecting to officers list...
+          🎉 Task created successfully! Redirecting to officer performance...
         </Alert>
       </Snackbar>
 
@@ -265,8 +235,8 @@ const AddTaskFlow: React.FC = () => {
       {/* Header */}
       <div className="flex flex-row justify-between">
         <div className="flex flex-row items-center text-xl gap-2 font-semibold mb-2">
-          <ArrowBackIcon className="cursor-pointer" onClick={() => navigate("/officers")} />
-          <h2 className="">Add New Task</h2>
+          <ArrowBackIcon className="cursor-pointer" onClick={() => navigate(`/officers/${officerName}/performance`)} />
+          <h2 className="">Add New Task for {officerData.name}</h2>
         </div>
 
         {currentStep < 4 && (
@@ -402,7 +372,7 @@ const AddTaskFlow: React.FC = () => {
         )}
       </div>
 
-      {/* Main Content - Following exact Add New Officer structure */}
+      {/* Main Content */}
       <Box
         sx={{
           mt: 2,
@@ -416,7 +386,7 @@ const AddTaskFlow: React.FC = () => {
           flexDirection: "column",
         }}
       >
-        {/* User Info Card - Centered */}
+        {/* Officer Info Card - Centered */}
         <Box
           sx={{
             display: "flex",
@@ -426,7 +396,7 @@ const AddTaskFlow: React.FC = () => {
         >
           <Box
             sx={{
-              width: "300px",
+              width: "350px",
               height: "56px",
               gap: "16px",
               borderRadius: "10px",
@@ -446,18 +416,33 @@ const AddTaskFlow: React.FC = () => {
                 alignItems: "center",
                 justifyContent: "center",
                 backgroundColor: "#F5F5F5",
+                overflow: "hidden",
               }}
             >
-              👤
+              {officerData.photo ? (
+                <img
+                  src={officerData.photo}
+                  alt={officerData.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              ) : (
+                <Typography sx={{ fontSize: "20px" }}>👤</Typography>
+              )}
             </Box>
-            <Box sx={{ width: "212px", height: "40px", gap: "8px" }}>
+            <Box sx={{ width: "262px", height: "40px", gap: "8px" }}>
               <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 0.5 }}>
-                <Typography sx={{ fontSize: "14px", color: "#A3A3A3", width: "72px" }}>Company ID</Typography>
-                <Typography sx={{ fontSize: "14px", color: "#3B3B3B", width: "132px" }}>1234</Typography>
+                <Typography sx={{ fontSize: "14px", color: "#A3A3A3", width: "72px" }}>Officer ID</Typography>
+                <Typography sx={{ fontSize: "14px", color: "#3B3B3B", width: "182px" }}>
+                  {officerData.guardId || officerData.id}
+                </Typography>
               </Box>
               <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                 <Typography sx={{ fontSize: "14px", color: "#A3A3A3", width: "72px" }}>Name</Typography>
-                <Typography sx={{ fontSize: "14px", color: "#3B3B3B", width: "132px" }}>Sachin Sharma</Typography>
+                <Typography sx={{ fontSize: "14px", color: "#3B3B3B", width: "182px" }}>{officerData.name}</Typography>
               </Box>
             </Box>
           </Box>
@@ -468,7 +453,7 @@ const AddTaskFlow: React.FC = () => {
 
         {/* Form Content */}
         <form style={{ flex: 1 }}>
-          {/* Form Content Container - Center the TaskDeadline component */}
+          {/* Form Content Container */}
           <Box
             sx={{
               display: "flex",
@@ -479,8 +464,7 @@ const AddTaskFlow: React.FC = () => {
             {currentStep === 1 && (
               <TaskLocationForm
                 data={formData.taskLocation}
-                clients={clients}
-                loadingClients={loadingClients}
+                areaOfficerId={areaOfficerId}
                 onUpdate={(data) => updateFormData("taskLocation", data)}
               />
             )}

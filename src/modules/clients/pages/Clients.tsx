@@ -92,6 +92,8 @@ export default function Clients() {
 
     result = result.filter((row) => row.totalSites >= sitesCountRange[0] && row.totalSites <= sitesCountRange[1]);
 
+    result.sort((a, b) => (b.favourite ? 1 : 0) - (a.favourite ? 1 : 0));
+
     setFilteredRows(result);
   };
 
@@ -145,11 +147,9 @@ export default function Clients() {
     setCurrentPage(page - 1);
   };
 
-  // Fixed handlePageSizeChange function
   const handlePageSizeChange = (event: any) => {
     const newPageSize = Number(event.target.value);
     setPageSize(newPageSize);
-    // Reset to first page when changing page size to avoid out-of-bounds issues
     setCurrentPage(0);
   };
 

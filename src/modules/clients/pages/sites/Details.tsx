@@ -1,3 +1,4 @@
+import { useClientSiteUpdate } from "@modules/clients/apis/hooks/useClientSiteUpdate";
 import { useGetClientSiteById } from "@modules/clients/apis/hooks/useGetClientSitesById";
 import { PatrolModal } from "@modules/clients/components/modals/PatrolModal";
 import { SiteGeofenceModal } from "@modules/clients/components/modals/SiteGeofenceModal";
@@ -8,6 +9,7 @@ import {
 } from "@modules/clients/components/modals/SiteUpdateModals";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
 import ModeEditOutlineOutlinedIcon from "@mui/icons-material/ModeEditOutlineOutlined";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import ToggleOnIcon from "@mui/icons-material/ToggleOn";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
@@ -20,7 +22,22 @@ export const SiteDetails = () => {
   const [contactModal, setContactModal] = useState(false);
   const { siteId } = useParams();
   const { data: siteRaw, isLoading, refetch } = useGetClientSiteById(siteId!);
+  const siteUpdateMutation = useClientSiteUpdate();
   const site = (siteRaw as any)?.data?.siteData || {};
+
+  const handlePatrollingToggle = async () => {
+    try {
+      await siteUpdateMutation.mutateAsync({
+        siteId: siteId!,
+        data: {
+          patrolling: !site.patrolling,
+        },
+      });
+      refetch();
+    } catch (error) {
+      console.error("Failed to update patrolling status:", error);
+    }
+  };
 
   if (isLoading) return <div>Loading...</div>;
   if (!site) return <div>No site data found.</div>;
@@ -131,10 +148,18 @@ export const SiteDetails = () => {
           </div>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 h-fit">
             <span className="text-[#A3A3A3]">Status</span>
-            <span className="inline-flex gap-2">
-              <ToggleOnIcon className={site.patrolling ? "text-[#5CC168]" : "text-[#A3A3A3]"} />
+            <button
+              onClick={handlePatrollingToggle}
+              className="inline-flex gap-2 w-fit items-center cursor-pointer hover:opacity-70 transition-opacity"
+              disabled={siteUpdateMutation.isPending}
+            >
+              {site.patrolling ? (
+                <ToggleOnIcon className="text-[#5CC168]" />
+              ) : (
+                <ToggleOffIcon className="text-[#A3A3A3]" />
+              )}
               {site.patrolling ? "ON" : "OFF"}
-            </span>
+            </button>
             <span className="text-[#A3A3A3]">Patrol Routes</span>
             <span>{Array.isArray(site.PatrolRoutes) ? site.PatrolRoutes.length : 0}</span>
           </div>
@@ -151,8 +176,9 @@ export const SiteDetails = () => {
         open={patrolModal}
         onClose={() => {
           setPatrolModal(false);
-          refetch();
         }}
+        refetch={refetch}
+        siteData={site}
       />
       <BasicDetailsModal
         open={basicModal}

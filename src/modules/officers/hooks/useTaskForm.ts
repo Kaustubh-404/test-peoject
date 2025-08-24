@@ -1,60 +1,41 @@
+// File: src/modules/officers/hooks/useTaskForm.ts
 import { useEffect, useState } from "react";
-import { type Client, type CreateTaskRequest, taskService } from "../service/taskService";
+import { taskService, type CreateTaskResponse, type TaskFormData } from "../service/taskService";
 
-export interface TaskFormData {
-  taskLocation: {
-    selectedClients: number[];
-    customLocation?: string;
-  };
-  taskSelection: {
-    selectedTasks: string[];
-  };
-  taskDeadline: {
-    dueDate: string;
-    dueTime: string;
-    amPm: "AM" | "PM";
-  };
-}
-
-export const useTaskForm = () => {
+export const useTaskForm = (areaOfficerId: string | null) => {
   const [formData, setFormData] = useState<TaskFormData>({
-    taskLocation: { selectedClients: [] },
-    taskSelection: { selectedTasks: [] },
-    taskDeadline: { dueDate: "", dueTime: "", amPm: "AM" },
+    taskLocation: {
+      selectedSites: [],
+      customLocation: undefined,
+      isCustomLocation: false,
+    },
+    taskSelection: {
+      selectedTasks: [],
+    },
+    taskDeadline: {
+      dueDate: "",
+      dueTime: "",
+      amPm: "AM",
+    },
   });
 
-  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load clients on mount
+  // Load draft on mount
   useEffect(() => {
-    loadClients();
     loadDraft();
   }, []);
 
-  const loadClients = async () => {
-    try {
-      setLoading(true);
-      const clientsData = await taskService.getClients();
-      setClients(clientsData);
-    } catch (err) {
-      setError("Failed to load clients");
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const loadDraft = () => {
-    const savedDraft = localStorage.getItem("taskDraft");
-    if (savedDraft) {
-      try {
-        const draftData = JSON.parse(savedDraft);
-        setFormData(draftData);
-      } catch (err) {
-        console.error("Error loading draft:", err);
+    try {
+      const draft = taskService.loadDraft();
+      if (draft) {
+        setFormData(draft);
+        console.log("📥 Loaded draft from storage");
       }
+    } catch (err) {
+      console.error("❌ Error loading draft:", err);
     }
   };
 
@@ -65,83 +46,115 @@ export const useTaskForm = () => {
     }));
   };
 
-  const saveDraft = async () => {
+  const saveDraft = async (): Promise<boolean> => {
     try {
-      localStorage.setItem("taskDraft", JSON.stringify(formData));
-      await taskService.saveDraft({
-        clientIds: formData.taskLocation.selectedClients,
-        taskTypes: formData.taskSelection.selectedTasks,
-        dueDate: formData.taskDeadline.dueDate,
-        dueTime: `${formData.taskDeadline.dueTime} ${formData.taskDeadline.amPm}`,
-        customLocation: formData.taskLocation.customLocation,
-      });
-      return true;
+      const success = await taskService.saveDraft(formData);
+      if (success) {
+        console.log("✅ Draft saved successfully");
+      }
+      return success;
     } catch (err) {
-      console.error("Error saving draft:", err);
+      console.error("❌ Error saving draft:", err);
+      setError("Failed to save draft");
       return false;
     }
   };
 
-  const submitTask = async () => {
+  const submitTask = async (): Promise<CreateTaskResponse | null> => {
+    if (!areaOfficerId) {
+      setError("Area Officer ID is required");
+      return null;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const taskData: CreateTaskRequest = {
-        clientIds: formData.taskLocation.selectedClients,
-        taskTypes: formData.taskSelection.selectedTasks,
-        dueDate: formData.taskDeadline.dueDate,
-        dueTime: `${formData.taskDeadline.dueTime} ${formData.taskDeadline.amPm}`,
-        customLocation: formData.taskLocation.customLocation,
-      };
+      console.log("🔄 Submitting task for officer:", areaOfficerId);
 
-      const result = await taskService.createTask(taskData);
+      const result = await taskService.createTask(formData, areaOfficerId);
 
       // Clear draft after successful creation
-      localStorage.removeItem("taskDraft");
+      taskService.clearDraft();
 
+      console.log("✅ Task submitted successfully:", result);
       return result;
-    } catch (err) {
-      setError("Failed to create task");
-      console.error(err);
-      throw err;
+    } catch (err: any) {
+      console.error("❌ Task submission error:", err);
+      setError(err.message || "Failed to create task");
+      return null;
     } finally {
       setLoading(false);
     }
   };
 
-  const validateStep = (step: number) => {
+  const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return formData.taskLocation.selectedClients.length > 0;
+        // Validate location selection
+        if (formData.taskLocation.isCustomLocation) {
+          return !!formData.taskLocation.customLocation?.trim();
+        } else {
+          return formData.taskLocation.selectedSites.length > 0;
+        }
       case 2:
         return formData.taskSelection.selectedTasks.length > 0;
       case 3:
-        return formData.taskDeadline.dueDate && formData.taskDeadline.dueTime && formData.taskDeadline.amPm;
+        return !!formData.taskDeadline.dueDate && !!formData.taskDeadline.dueTime && !!formData.taskDeadline.amPm;
       default:
         return true;
     }
   };
 
+  const validateForm = (): string[] => {
+    return taskService.validateFormData(formData);
+  };
+
   const clearForm = () => {
     setFormData({
-      taskLocation: { selectedClients: [] },
-      taskSelection: { selectedTasks: [] },
-      taskDeadline: { dueDate: "", dueTime: "", amPm: "AM" },
+      taskLocation: {
+        selectedSites: [],
+        customLocation: undefined,
+        isCustomLocation: false,
+      },
+      taskSelection: {
+        selectedTasks: [],
+      },
+      taskDeadline: {
+        dueDate: "",
+        dueTime: "",
+        amPm: "AM",
+      },
     });
-    localStorage.removeItem("taskDraft");
+    taskService.clearDraft();
+    setError(null);
+  };
+
+  const clearDraft = () => {
+    taskService.clearDraft();
+  };
+
+  const getTaskTypeDisplayName = (taskType: string): string => {
+    return taskService.getTaskTypeDisplayName(taskType);
+  };
+
+  const formatDeadlineForDisplay = (dueDate: string, dueTime: string, amPm: "AM" | "PM"): string => {
+    return taskService.formatDeadlineForDisplay(dueDate, dueTime, amPm);
   };
 
   return {
     formData,
-    clients,
     loading,
     error,
     updateFormData,
     saveDraft,
     submitTask,
     validateStep,
+    validateForm,
     clearForm,
-    loadClients,
+    clearDraft,
+    loadDraft,
+    getTaskTypeDisplayName,
+    formatDeadlineForDisplay,
   };
 };
