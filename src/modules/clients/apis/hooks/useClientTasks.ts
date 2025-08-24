@@ -1,21 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { getClientTasks, type TasksFilters } from "../services/tasks";
 
-export const useGetTasksByAgencyId = (
-  agencyId: string,
-  additionalFilters?: Omit<TasksFilters, "agencyId">,
-  enabled: boolean = true
-) => {
-  return useQuery({
-    queryKey: ["tasks", "byAgency", agencyId, additionalFilters],
-    queryFn: () => getClientTasks({ agencyId, ...additionalFilters }),
-    enabled: enabled && !!agencyId,
-    staleTime: 2 * 60 * 1000,
-    refetchOnWindowFocus: false,
-    retry: 3,
-  });
-};
-
 export const useGetTasksByClientId = (
   agencyId: string,
   clientId: string,

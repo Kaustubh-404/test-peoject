@@ -1,35 +1,8 @@
 import LabeledInput from "@components/LabeledInput";
+import type { ClientFormData } from "@modules/clients/types";
 import { Button, Divider } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
-
-// Form interface that matches your existing UI structure
-interface ClientFormData {
-  clientName: string;
-  address: {
-    addressLine1: string;
-    addressLine2: string;
-    city: string;
-    district: string;
-    pincode: string;
-    state: string;
-    landmark: string;
-  };
-  contactDetails: {
-    contactPerson: {
-      fullName: string;
-      desgination: string;
-      phoneNumber: string;
-      email: string;
-    };
-    emergencyContact: {
-      fullName: string;
-      desgination: string;
-      phoneNumber: string;
-      email: string;
-    };
-  };
-}
 
 export default function ContactDetailsForm() {
   const {
@@ -38,6 +11,7 @@ export default function ContactDetailsForm() {
     watch,
     setError,
     clearErrors,
+    unregister,
   } = useFormContext<ClientFormData>();
   const [showContactPerson2, setShowContactPerson2] = useState(false);
 
@@ -45,7 +19,6 @@ export default function ContactDetailsForm() {
     const subscription = watch((values, { name }) => {
       const contactPhone = values?.contactDetails?.contactPerson?.phoneNumber;
       const emergencyPhone = values?.contactDetails?.emergencyContact?.phoneNumber;
-      // Only run cross-field validation if either phone number changes
       if (
         name === "contactDetails.contactPerson.phoneNumber" ||
         name === "contactDetails.emergencyContact.phoneNumber"
@@ -56,7 +29,6 @@ export default function ContactDetailsForm() {
             message: "Emergency contact phone number cannot be the same as contact person phone number",
           });
         } else {
-          // Only clear the manual error, not all errors, to avoid interfering with field validation
           const err = errors?.contactDetails?.emergencyContact?.phoneNumber;
           if (err && err.type === "manual") {
             clearErrors("contactDetails.emergencyContact.phoneNumber");
@@ -67,11 +39,19 @@ export default function ContactDetailsForm() {
     return () => subscription.unsubscribe();
   }, [watch, setError, clearErrors, errors]);
 
+  useEffect(() => {
+    if (!showContactPerson2) {
+      unregister("contactDetails.emergencyContact.fullName");
+      unregister("contactDetails.emergencyContact.designation");
+      unregister("contactDetails.emergencyContact.phoneNumber");
+      unregister("contactDetails.emergencyContact.email");
+    }
+  }, [showContactPerson2, unregister]);
+
   return (
     <div className="flex flex-col gap-2 bg-white mt-2 rounded-xl p-6 pb-10">
       <h2 className="text-xl text-[#2A77D5] mb-2">CONTACT DETAILS</h2>
 
-      {/* Contact Person Section */}
       <h3>CONTACT PERSON</h3>
       <Divider />
       <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-2">
@@ -89,15 +69,15 @@ export default function ContactDetailsForm() {
         />
         <LabeledInput
           label="Designation"
-          name="contactDetails.contactPerson.desgination"
+          name="contactDetails.contactPerson.designation"
           placeholder="Enter Designation"
           required
           register={register}
           validation={{
             required: "Designation is required",
           }}
-          error={!!errors.contactDetails?.contactPerson?.desgination}
-          helperText={errors.contactDetails?.contactPerson?.desgination?.message}
+          error={!!errors.contactDetails?.contactPerson?.designation}
+          helperText={errors.contactDetails?.contactPerson?.designation?.message}
         />
         <LabeledInput
           label="Phone Number"
@@ -153,12 +133,12 @@ export default function ContactDetailsForm() {
             />
             <LabeledInput
               label="Designation"
-              name="contactDetails.emergencyContact.desgination"
+              name="contactDetails.emergencyContact.designation"
               placeholder="Enter Designation"
               register={register}
               validation={{}}
-              error={!!errors.contactDetails?.emergencyContact?.desgination}
-              helperText={errors.contactDetails?.emergencyContact?.desgination?.message}
+              error={!!errors.contactDetails?.emergencyContact?.designation}
+              helperText={errors.contactDetails?.emergencyContact?.designation?.message}
             />
             <LabeledInput
               label="Phone Number"

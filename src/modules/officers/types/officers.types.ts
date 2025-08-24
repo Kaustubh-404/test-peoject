@@ -30,8 +30,7 @@ export enum UserType {
 
 export enum AddressType {
   PERMANENT = "PERMANENT",
-  TEMPORARY = "TEMPORARY",
-  LOCAL = "LOCAL",
+  CURRENT = "CURRENT",
 }
 
 export enum ContactType {
@@ -100,7 +99,22 @@ export interface OfficerApiDocument {
   isVerified?: boolean;
 }
 
-// API request interface - matches the guard API schema exactly
+// 🔥 FIXED: Employment interface to match backend DTO (single object)
+export interface OfficerApiEmployment {
+  position?: string;
+  startDate?: string;
+  assignedDutyArea?: string;
+  areaManager?: string;
+  assignedAreaId?: string;
+  areaManagerId?: string;
+  psaraStatus?: string;
+  licenseNumber?: string;
+  dateOfIssue?: string;
+  validUntil?: string;
+  validIn?: string;
+}
+
+// 🔥 FIXED: API request interface - changed employments to employment (single object)
 export interface CreateOfficerRequest {
   firstName: string;
   middleName?: string;
@@ -123,7 +137,7 @@ export interface CreateOfficerRequest {
   emergencyContacts?: EmergencyContact[];
   familyMembers?: FamilyMember[];
   documents?: OfficerApiDocument[];
-  // No files array - documents are verification only
+  employment?: OfficerApiEmployment; // 🔥 FIXED: Single employment object (not array)
 }
 
 // Officer form data types (updated to match guards structure)
@@ -182,12 +196,15 @@ export interface OfficerAddress {
   sameAsPermanent: boolean;
 }
 
+// Update the OfficerEmploymentDetails interface to include ID fields
 export interface OfficerEmploymentDetails {
   companyId: string;
   dateOfJoining: string;
   designation: string;
   assignedDutyArea: string;
+  assignedDutyAreaId?: string; // Store area ID separately for API calls
   areaManager: string;
+  areaManagerId?: string; // Store manager ID separately for API calls
   referredBy: string;
   referralContactNumber: string; // 10-digit number (backend adds +91)
   relationshipWithOfficer: string;

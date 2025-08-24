@@ -52,6 +52,12 @@ export interface EmploymentDetailsUpdate {
   position?: string;
   startDate?: string;
   psaraCertificationStatus?: string;
+  guardType?: string; // Guard type ID
+  salary?: string;
+  licenseNumber?: string;
+  dateOfIssue?: string;
+  validUntil?: string;
+  validIn?: string;
 }
 
 // Family members update
@@ -280,7 +286,6 @@ export const guardProfileService = {
         personalDetails.dateOfBirth = formatDateToISO(personalDetails.dateOfBirth);
       }
 
-      // Only include fields that have values to avoid overriding with empty data
       Object.keys(personalDetails).forEach((key) => {
         const value = personalDetails[key as keyof PersonalDetailsUpdate];
         if (value !== undefined && value !== null && value !== "") {
@@ -318,14 +323,13 @@ export const guardProfileService = {
         }
       }
 
-      // Handle addresses - FIXED to match API structure exactly
+      // Handle addresses
       if (updateData.contactDetails.addresses) {
         apiData.addresses = [];
 
         // Add permanent address
         if (updateData.contactDetails.addresses.permanent) {
           const addr = updateData.contactDetails.addresses.permanent;
-          // Only add if it has the required fields
           if (addr.addressLine1 && addr.city && addr.state && addr.pincode) {
             apiData.addresses.push({
               line1: addr.addressLine1,
@@ -333,7 +337,7 @@ export const guardProfileService = {
               city: addr.city,
               district: addr.district || "",
               state: addr.state,
-              pinCode: addr.pincode, // Note: API uses pinCode, not pincode
+              pinCode: addr.pincode,
               landmark: addr.landmark || "",
               type: "PERMANENT",
               isPrimary: true,
@@ -345,7 +349,6 @@ export const guardProfileService = {
         // Add local address
         if (updateData.contactDetails.addresses.local) {
           const addr = updateData.contactDetails.addresses.local;
-          // Only add if it has the required fields
           if (addr.addressLine1 && addr.city && addr.state && addr.pincode) {
             apiData.addresses.push({
               line1: addr.addressLine1,
@@ -353,7 +356,7 @@ export const guardProfileService = {
               city: addr.city,
               district: addr.district || "",
               state: addr.state,
-              pinCode: addr.pincode, // Note: API uses pinCode, not pincode
+              pinCode: addr.pincode,
               landmark: addr.landmark || "",
               type: "TEMPORARY",
               isPrimary: false,
@@ -369,7 +372,7 @@ export const guardProfileService = {
       }
     }
 
-    // Emergency contact transformation - FIXED: Always send as array
+    // Emergency contact transformation
     if (updateData.emergencyContact) {
       const ec = updateData.emergencyContact;
       if (ec.contactName && ec.phoneNumber) {
@@ -383,7 +386,7 @@ export const guardProfileService = {
       }
     }
 
-    // Family members transformation - FIXED: Always send as array
+    // Family members transformation
     if (updateData.familyMembers) {
       const familyMembers = [];
 
@@ -408,31 +411,44 @@ export const guardProfileService = {
         });
       }
 
-      // Always include family members array, even if empty (to clear existing data)
       apiData.familyMembers = familyMembers;
     }
 
-    // Employment details are typically handled separately
-    // as they might involve different endpoints
+    // Employment details transformation
     if (updateData.employmentDetails) {
       const emp = updateData.employmentDetails;
 
-      // For employment details, we need to update the employments array
-      // Since this is typically the current employment
-      if (emp.position || emp.startDate || emp.psaraCertificationStatus) {
-        apiData.employments = [
-          {
-            position: emp.position || null,
-            startDate: emp.startDate ? formatDateToISO(emp.startDate) : null,
-            isCurrentEmployer: true,
-            // Note: psaraCertificationStatus might need to be handled differently
-            // as it's not in the standard employment object
-          },
-        ];
+      // Update guard type if provided
+      if (emp.guardType) {
+        apiData.guardType = emp.guardType;
+      }
+
+      const hasOtherEmploymentData =
+        emp.startDate ||
+        emp.psaraCertificationStatus ||
+        emp.position ||
+        emp.salary ||
+        emp.licenseNumber ||
+        emp.dateOfIssue ||
+        emp.validUntil ||
+        emp.validIn;
+
+      if (hasOtherEmploymentData) {
+        apiData.employment = {
+          ...(emp.startDate && { startDate: formatDateToISO(emp.startDate) }),
+          ...(emp.position && { position: emp.position }),
+          ...(emp.salary && { salary: emp.salary }),
+          ...(emp.psaraCertificationStatus && { psaraStatus: emp.psaraCertificationStatus }),
+          ...(emp.licenseNumber && { licenseNumber: emp.licenseNumber }),
+          ...(emp.dateOfIssue && { dateOfIssue: formatDateToISO(emp.dateOfIssue) }),
+          ...(emp.validUntil && { validUntil: formatDateToISO(emp.validUntil) }),
+          ...(emp.validIn && { valindIn: emp.validIn }),
+        };
       }
     }
 
     console.log("🔄 Transformed API data:", apiData);
+
     return apiData;
   },
 

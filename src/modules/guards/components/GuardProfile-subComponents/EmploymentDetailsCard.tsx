@@ -3,6 +3,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import { Box, CircularProgress, IconButton, Typography } from "@mui/material";
 import React from "react";
 import { formatDateOnly } from "../../../../utils/dateFormatter";
+import { useGuardTypes } from "../../hooks/useGuardTypes";
 
 // Props interface
 interface EmploymentDetailsCardProps {
@@ -14,6 +15,8 @@ interface EmploymentDetailsCardProps {
   };
   onEdit: () => void;
   isUpdating?: boolean;
+  agencyId?: string;
+  guardTypeId?: string; // The actual guard type ID from API
 }
 
 // Key-Value pair component for displaying data
@@ -52,7 +55,32 @@ const EmploymentDetailsCard: React.FC<EmploymentDetailsCardProps> = ({
   employmentDetails,
   onEdit,
   isUpdating = false,
+  agencyId,
+  guardTypeId,
 }) => {
+  // Fetch guard types to get the proper guard type name
+  const { data: guardTypes } = useGuardTypes(agencyId || "", { enabled: !!agencyId });
+
+  // Find the guard type name from the ID
+  const guardTypeName = guardTypes?.find((gt) => gt.id === guardTypeId)?.typeName || employmentDetails.guardType;
+
+  // Format PSARA status for display
+  const formatPsaraStatus = (status: string) => {
+    switch (status) {
+      case "PENDING":
+        return "Pending";
+      case "COMPLETED":
+        return "Completed";
+      case "IN_PROGRESS":
+        return "In Progress";
+      case "REJECTED":
+        return "Rejected";
+      case "EXPIRED":
+        return "Expired";
+      default:
+        return status || "N/A";
+    }
+  };
   return (
     <Box
       sx={{
@@ -117,8 +145,8 @@ const EmploymentDetailsCard: React.FC<EmploymentDetailsCardProps> = ({
           label="Joining Date"
           value={employmentDetails.dateOfJoining ? formatDateOnly(employmentDetails.dateOfJoining) : ""}
         />
-        <KeyValuePair label="Designation" value={employmentDetails.guardType || ""} />
-        <KeyValuePair label="PSARA Status" value={employmentDetails.psaraCertificationStatus || ""} />
+        <KeyValuePair label="Designation" value={guardTypeName || ""} />
+        <KeyValuePair label="PSARA Status" value={formatPsaraStatus(employmentDetails.psaraCertificationStatus)} />
       </Box>
     </Box>
   );

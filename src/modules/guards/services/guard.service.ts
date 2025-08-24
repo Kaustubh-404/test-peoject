@@ -1,5 +1,5 @@
 // File: src/services/guard.service.ts - Updated with missing API fields
-import { guardsApi } from "../../../config/axios"; // 🔥 NEW: Import authApi for guard types
+import { authApi, guardsApi } from "../../../config/axios"; // 🔥 NEW: Import authApi for guard types
 import {
   AddressType,
   ContactType,
@@ -454,7 +454,7 @@ export const guardTypesService = {
     try {
       console.log("🔍 Fetching guard types for agency:", agencyId);
 
-      const response = await guardsApi.get(`/api/v2/settings/guard-types/${agencyId}`);
+      const response = await authApi.get(`/settings/guard-types/${agencyId}`);
 
       console.log("✅ Guard types API response:", response.data);
 

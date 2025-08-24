@@ -125,10 +125,7 @@ const OfficerProfileWindow: React.FC = () => {
   const transformApiDataToDisplayFormat = (apiData: APIOfficerProfile) => {
     // Get addresses with proper null checks
     const permanentAddress = apiData.addresses?.find((addr) => addr.type === "PERMANENT");
-    const localAddress =
-      apiData.addresses?.find((addr) => addr.type === "CURRENT") ||
-      apiData.addresses?.find((addr) => addr.type === "TEMPORARY") ||
-      permanentAddress;
+    const localAddress = apiData.addresses?.find((addr) => addr.type === "CURRENT") || permanentAddress;
 
     // Get contacts with proper null checks
     const primaryContact = apiData.contacts?.find((contact) => contact.contactType === "PRIMARY");
@@ -215,8 +212,8 @@ const OfficerProfileWindow: React.FC = () => {
         companyId: apiData.currentAgencyId || "",
         dateOfJoining: currentEmployment?.startDate || "",
         designation: currentEmployment?.position || "Area Officer",
-        assignedArea: "Area Assignment", // This would come from another API field
-        areaManager: "Area Manager", // This would come from another API field
+        assignedArea: currentEmployment?.assignedDutyArea || currentEmployment?.assignedArea || "Not assigned",
+        areaManager: currentEmployment?.areaManager || "Not assigned",
       },
       documentVerification: {
         documents: {

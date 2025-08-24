@@ -20,6 +20,7 @@ interface TaskData {
   date: string;
   time: string;
   status: string;
+  note?: string;
 }
 
 interface TaskNoteModalProps {
@@ -68,8 +69,7 @@ export default function TaskNoteModal({
   },
 }: TaskNoteModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [taskDescription, setTaskDescription] = useState("crosin from kemist");
-
+  const [taskDescription, setTaskDescription] = useState(taskData?.note || "");
   if (!open) return null;
 
   const toggleAudio = () => {
@@ -201,8 +201,9 @@ export default function TaskNoteModal({
               <textarea
                 value={taskDescription}
                 onChange={(e) => setTaskDescription(e.target.value)}
-                className="bg-white w-full h-40 p-4 border-2 border-blue-300 rounded-lg resize-none focus:outline-none focus:border-blue-500 text-gray-700"
-                placeholder="Enter task description..."
+                disabled={true}
+                className="bg-gray-100 w-full h-40 p-4 border-2 border-gray-300 rounded-lg resize-none focus:outline-none text-gray-700 cursor-not-allowed"
+                placeholder="No task description available..."
               />
             </div>
             <div className="">

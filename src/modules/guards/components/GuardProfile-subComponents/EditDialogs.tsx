@@ -16,6 +16,7 @@ import {
   Typography,
 } from "@mui/material";
 import React from "react";
+import { useGuardTypes } from "../../hooks/useGuardTypes";
 
 // Personal Details Edit Dialog
 interface PersonalDetailsEditDialogProps {
@@ -626,6 +627,7 @@ interface EmploymentDetailsEditDialogProps {
   setFormData: (data: any) => void;
   onSave: () => void;
   isLoading: boolean;
+  agencyId?: string; // Add agencyId for fetching guard types
 }
 
 export const EmploymentDetailsEditDialog: React.FC<EmploymentDetailsEditDialogProps> = ({
@@ -635,7 +637,14 @@ export const EmploymentDetailsEditDialog: React.FC<EmploymentDetailsEditDialogPr
   setFormData,
   onSave,
   isLoading,
+  agencyId,
 }) => {
+  // Fetch guard types for the dropdown
+  const {
+    data: guardTypes,
+    isLoading: guardTypesLoading,
+    error: guardTypesError,
+  } = useGuardTypes(agencyId || "", { enabled: !!agencyId && open });
   return (
     <Dialog
       open={open}
@@ -715,13 +724,27 @@ export const EmploymentDetailsEditDialog: React.FC<EmploymentDetailsEditDialogPr
                 value={formData.guardType || ""}
                 onChange={(e) => setFormData({ ...formData, guardType: e.target.value })}
                 sx={{ borderRadius: "4px" }}
+                disabled={guardTypesLoading}
               >
-                <MenuItem value="Security Guard">Security Guard</MenuItem>
-                <MenuItem value="Senior Guard">Senior Guard</MenuItem>
-                <MenuItem value="Armed Guard">Armed Guard</MenuItem>
-                <MenuItem value="Personal Security">Personal Security</MenuItem>
-                <MenuItem value="Lady Security">Lady Security</MenuItem>
-                <MenuItem value="Supervisor">Supervisor</MenuItem>
+                {guardTypesLoading ? (
+                  <MenuItem value="" disabled>
+                    Loading guard types...
+                  </MenuItem>
+                ) : guardTypesError ? (
+                  <MenuItem value="" disabled>
+                    Error loading guard types
+                  </MenuItem>
+                ) : guardTypes && guardTypes.length > 0 ? (
+                  guardTypes.map((guardType) => (
+                    <MenuItem key={guardType.id} value={guardType.id}>
+                      {guardType.typeName}
+                    </MenuItem>
+                  ))
+                ) : (
+                  <MenuItem value="" disabled>
+                    No guard types available
+                  </MenuItem>
+                )}
               </Select>
             </FormControl>
 
@@ -734,11 +757,11 @@ export const EmploymentDetailsEditDialog: React.FC<EmploymentDetailsEditDialogPr
                 onChange={(e) => setFormData({ ...formData, psaraCertificationStatus: e.target.value })}
                 sx={{ borderRadius: "4px" }}
               >
-                <MenuItem value="Pending">Pending</MenuItem>
-                <MenuItem value="Completed">Completed</MenuItem>
-                <MenuItem value="In Progress">In Progress</MenuItem>
-                <MenuItem value="Rejected">Rejected</MenuItem>
-                <MenuItem value="Expired">Expired</MenuItem>
+                <MenuItem value="PENDING">Pending</MenuItem>
+                <MenuItem value="COMPLETED">Completed</MenuItem>
+                <MenuItem value="IN_PROGRESS">In Progress</MenuItem>
+                <MenuItem value="REJECTED">Rejected</MenuItem>
+                <MenuItem value="EXPIRED">Expired</MenuItem>
               </Select>
             </FormControl>
           </Box>

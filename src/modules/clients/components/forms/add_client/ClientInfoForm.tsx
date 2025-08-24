@@ -10,6 +10,7 @@ import { useFormContext } from "react-hook-form";
 const indianStates = State.getStatesOfCountry("IN").map((s) => ({ value: s.name, label: s.name }));
 
 export default function ClientInfoForm({
+  clientLogo,
   setClientLogo,
   onLogoChange,
 }: {
@@ -25,6 +26,17 @@ export default function ClientInfoForm({
     trigger,
   } = useFormContext<ClientFormData>();
 
+  // Register the clientLogo field with validation
+  useEffect(() => {
+    register("clientLogo", {
+      required: "Client logo is required",
+      validate: (value) => {
+        if (!value) return "Client logo is required";
+        return true;
+      },
+    });
+  }, [register]);
+
   const selectedState = watch("address.state");
   const [cityOptions, setCityOptions] = useState<{ value: string; label: string }[]>([]);
 
@@ -35,13 +47,10 @@ export default function ClientInfoForm({
         State.getStatesOfCountry("IN").find((s) => s.name === selectedState)?.isoCode || ""
       );
       setCityOptions(cities.map((c) => ({ value: c.name, label: c.name })));
-      // Optionally reset city if state changes
-      setValue("address.city", "");
     } else {
       setCityOptions([]);
-      setValue("address.city", "");
     }
-  }, [selectedState, setValue]);
+  }, [selectedState]);
 
   const handleLogoChange = (file: File | null) => {
     setClientLogo(file);
@@ -49,6 +58,13 @@ export default function ClientInfoForm({
     setValue("clientLogo", file, { shouldValidate: true });
     trigger("clientLogo");
   };
+
+  // Sync the form value with clientLogo state when clientLogo changes
+  useEffect(() => {
+    if (clientLogo) {
+      setValue("clientLogo", clientLogo, { shouldValidate: true });
+    }
+  }, [clientLogo, setValue]);
 
   return (
     <div className="flex flex-col gap-2 bg-white mt-2 rounded-xl p-6 pb-10">
@@ -63,9 +79,9 @@ export default function ClientInfoForm({
             maxSize={2}
             acceptedFileTypes="image/*"
             onFileChange={handleLogoChange}
+            initialFile={clientLogo}
             errorText={errors.clientLogo?.message}
           />
-          {errors.clientLogo && <span className="text-xs text-red-500 mt-1 block">Logo is required</span>}
         </div>
         <div className="flex flex-col gap-2 w-[25vw]">
           <LabeledInput

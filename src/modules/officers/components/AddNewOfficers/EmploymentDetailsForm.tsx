@@ -1,6 +1,7 @@
-import { Box, Divider, MenuItem, TextField, Typography } from "@mui/material";
-import React, { useEffect } from "react";
+import { Box, CircularProgress, Divider, MenuItem, TextField, Typography } from "@mui/material";
+import React, { useEffect, useState } from "react";
 import { useAuth } from "../../../../hooks/useAuth";
+import { useAreasAndManagers } from "../../hooks/useAreasAndManagers";
 import LabeledInput from "../LabeledInput";
 
 // Define props interface for the component
@@ -18,6 +19,10 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
   setValue,
 }) => {
   const { user } = useAuth(); // Get the logged-in user
+  const [selectedAreaId, setSelectedAreaId] = useState<string>("");
+
+  // Use the new hooks to fetch areas and managers
+  const { areas, managers, isLoading, hasError, error, refetchAll } = useAreasAndManagers(user?.agencyId || null);
 
   // Auto-fill company ID with agency ID when component mounts
   useEffect(() => {
@@ -27,23 +32,96 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
   }, [user, setValue]);
 
   // Helper functions to check and get errors
-  const hasError = (fieldName: string) => {
+  const hasFieldError = (fieldName: string) => {
     return errors?.employmentDetails && errors.employmentDetails[fieldName] ? true : false;
   };
 
   const getErrorMessage = (fieldName: string) => {
-    return hasError(fieldName) ? errors.employmentDetails[fieldName].message : "";
+    return hasFieldError(fieldName) ? errors.employmentDetails[fieldName].message : "";
   };
 
   // Get values from watch
   const assignedDutyArea = watch ? watch("employmentDetails.assignedDutyArea") || "" : "";
+  const assignedDutyAreaId = watch ? watch("employmentDetails.assignedDutyAreaId") || "" : "";
   const areaManager = watch ? watch("employmentDetails.areaManager") || "" : "";
+  const areaManagerId = watch ? watch("employmentDetails.areaManagerId") || "" : "";
 
-  // Area options
-  const areaOptions = ["North Delhi", "South Delhi", "South East Delhi", "South West Delhi", "East Delhi", "Gurgaon"];
+  // Handle area selection change
+  const handleAreaChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const areaId = event.target.value;
+    const selectedArea = areas.find((area) => area.id === areaId);
 
-  // Area Manager options based on screenshots
-  const areaManagerOptions = ["Sachin Sharma", "Anup Singh", "Vishesh Singh", "Prakash Kapoor", "Prabh Kumar"];
+    console.log("🎯 Area selection changed:", {
+      areaId,
+      areaName: selectedArea?.name,
+      currentManagerId: areaManagerId,
+      managersInThisArea: managers.filter((m) => m.areaId === areaId).length,
+    });
+
+    setSelectedAreaId(areaId);
+
+    if (setValue) {
+      // Store both ID and name for backward compatibility
+      setValue("employmentDetails.assignedDutyArea", selectedArea?.name || "");
+      setValue("employmentDetails.assignedDutyAreaId", areaId);
+
+      // Only clear area manager if the current manager is not from the selected area
+      if (areaManagerId) {
+        const currentManager = managers.find((m) => m.id === areaManagerId);
+        if (currentManager && currentManager.areaId !== areaId) {
+          // Manager is from a different area, clear it
+          console.log("🧹 Clearing manager because they are from different area");
+          setValue("employmentDetails.areaManager", "");
+          setValue("employmentDetails.areaManagerId", "");
+        } else {
+          console.log("✅ Keeping current manager as they belong to selected area");
+        }
+      }
+    }
+  };
+
+  // Handle area manager selection change
+  const handleAreaManagerChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const managerId = event.target.value;
+    const selectedManager = managers.find((manager) => manager.id === managerId);
+
+    console.log("👤 Manager selection changed:", {
+      managerId,
+      managerName: selectedManager?.fullName,
+      managerAreaId: selectedManager?.areaId,
+      currentAreaId: selectedAreaId,
+    });
+
+    if (setValue) {
+      // Store both ID and name for backward compatibility
+      setValue("employmentDetails.areaManager", selectedManager?.fullName || "");
+      setValue("employmentDetails.areaManagerId", managerId);
+    }
+  };
+
+  // Get available managers for the selected area
+  const availableManagers = selectedAreaId ? managers.filter((manager) => manager.areaId === selectedAreaId) : managers; // Show all managers if no area selected
+
+  console.log("🔍 Manager filtering debug:", {
+    selectedAreaId,
+    totalManagers: managers.length,
+    availableManagers: availableManagers.length,
+    managerAreaIds: managers.map((m) => ({ name: m.fullName, areaId: m.areaId })),
+  });
+
+  // Find area ID from area name (for initial load)
+  useEffect(() => {
+    if (assignedDutyArea && areas.length > 0 && !selectedAreaId) {
+      const area = areas.find((a) => a.name === assignedDutyArea);
+      if (area) {
+        setSelectedAreaId(area.id);
+      }
+    }
+    // If we have an area ID stored, use that
+    if (assignedDutyAreaId && areas.length > 0) {
+      setSelectedAreaId(assignedDutyAreaId);
+    }
+  }, [assignedDutyArea, assignedDutyAreaId, areas.length, selectedAreaId]); // Fixed dependencies
 
   // Simple phone number formatting - only allow digits and limit to 10
   const formatPhoneNumber = (value: string): string => {
@@ -95,6 +173,23 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
       >
         EMPLOYMENT DETAILS
       </Typography>
+
+      {/* Error Display */}
+      {hasError && (
+        <Box sx={{ mb: 2 }}>
+          <Typography color="error" variant="body2">
+            {error?.message || "Failed to load areas and managers"}
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{ color: "#2A77D5", cursor: "pointer", textDecoration: "underline" }}
+            onClick={refetchAll}
+          >
+            Retry
+          </Typography>
+        </Box>
+      )}
+
       {/* Section 1 - Duty Details */}
       <Box sx={{ width: "100%" }}>
         <Typography
@@ -124,7 +219,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                 variant="body2"
                 sx={{
                   mb: 0.5,
-                  color: hasError("companyId") ? "error.main" : "#707070",
+                  color: hasFieldError("companyId") ? "error.main" : "#707070",
                 }}
               >
                 Company ID <span style={{ color: "red" }}>*</span>
@@ -142,7 +237,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     message: "Invalid Company ID format",
                   },
                 })}
-                error={hasError("companyId")}
+                error={hasFieldError("companyId")}
                 helperText={getErrorMessage("companyId") || "This field is automatically filled with your Agency ID"}
                 sx={{
                   "& .MuiOutlinedInput-root": {
@@ -172,7 +267,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     },
                   },
                 }}
-                error={hasError("dateOfJoining")}
+                error={hasFieldError("dateOfJoining")}
                 helperText={getErrorMessage("dateOfJoining")}
               />
             </Box>
@@ -189,7 +284,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     message: "Invalid characters in Designation",
                   },
                 }}
-                error={hasError("designation")}
+                error={hasFieldError("designation")}
                 helperText={getErrorMessage("designation")}
               />
             </Box>
@@ -202,7 +297,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                 variant="body2"
                 sx={{
                   mb: 0.5,
-                  color: hasError("assignedDutyArea") ? "error.main" : "#707070",
+                  color: hasFieldError("assignedDutyArea") ? "error.main" : "#707070",
                 }}
               >
                 Assigned Duty Area <span style={{ color: "red" }}>*</span>
@@ -211,13 +306,14 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                 select
                 fullWidth
                 size="small"
-                value={assignedDutyArea}
+                value={selectedAreaId || assignedDutyAreaId || ""}
                 {...register("employmentDetails.assignedDutyArea", {
                   required: "Assigned Duty Area is required",
                 })}
-                error={hasError("assignedDutyArea")}
+                error={hasFieldError("assignedDutyArea")}
                 helperText={getErrorMessage("assignedDutyArea")}
-                onChange={(e) => setValue && setValue("employmentDetails.assignedDutyArea", e.target.value)}
+                onChange={handleAreaChange}
+                disabled={isLoading}
                 sx={{
                   "& .MuiInputLabel-root": {
                     fontFamily: "Mukta",
@@ -228,12 +324,29 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                   },
                 }}
               >
-                <MenuItem value="">Select Duty Area</MenuItem>
-                {areaOptions.map((area) => (
-                  <MenuItem key={area} value={area}>
-                    {area}
-                  </MenuItem>
-                ))}
+                {isLoading
+                  ? [
+                      <MenuItem key="loading" disabled>
+                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                        Loading areas...
+                      </MenuItem>,
+                    ]
+                  : areas.length === 0
+                    ? [
+                        <MenuItem key="no-areas" disabled>
+                          No areas available
+                        </MenuItem>,
+                      ]
+                    : [
+                        <MenuItem key="select-area" value="">
+                          Select Duty Area
+                        </MenuItem>,
+                        ...areas.map((area) => (
+                          <MenuItem key={area.id} value={area.id}>
+                            {area.name}
+                          </MenuItem>
+                        )),
+                      ]}
               </TextField>
             </Box>
             <Box sx={{ width: "352px" }}>
@@ -241,7 +354,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                 variant="body2"
                 sx={{
                   mb: 0.5,
-                  color: hasError("areaManager") ? "error.main" : "#707070",
+                  color: hasFieldError("areaManager") ? "error.main" : "#707070",
                 }}
               >
                 Area Manager <span style={{ color: "red" }}>*</span>
@@ -250,13 +363,19 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                 select
                 fullWidth
                 size="small"
-                value={areaManager}
+                value={
+                  areaManagerId ||
+                  // Fallback: find manager ID from name for backward compatibility
+                  managers.find((m) => m.fullName === areaManager)?.id ||
+                  ""
+                }
                 {...register("employmentDetails.areaManager", {
                   required: "Area Manager is required",
                 })}
-                error={hasError("areaManager")}
+                error={hasFieldError("areaManager")}
                 helperText={getErrorMessage("areaManager")}
-                onChange={(e) => setValue && setValue("employmentDetails.areaManager", e.target.value)}
+                onChange={handleAreaManagerChange}
+                disabled={isLoading}
                 sx={{
                   "& .MuiInputLabel-root": {
                     fontFamily: "Mukta",
@@ -267,12 +386,30 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                   },
                 }}
               >
-                <MenuItem value="">Select Area Manager</MenuItem>
-                {areaManagerOptions.map((manager) => (
-                  <MenuItem key={manager} value={manager}>
-                    {manager}
-                  </MenuItem>
-                ))}
+                {isLoading
+                  ? [
+                      <MenuItem key="loading-managers" disabled>
+                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                        Loading managers...
+                      </MenuItem>,
+                    ]
+                  : availableManagers.length === 0
+                    ? [
+                        <MenuItem key="no-managers" disabled>
+                          {selectedAreaId ? "No managers for selected area" : "Select an area first"}
+                        </MenuItem>,
+                      ]
+                    : [
+                        <MenuItem key="select-manager" value="">
+                          Select Area Manager
+                        </MenuItem>,
+                        ...availableManagers.map((manager) => (
+                          <MenuItem key={manager.id} value={manager.id}>
+                            {manager.fullName}
+                            {manager.area && ` (${manager.area.name})`}
+                          </MenuItem>
+                        )),
+                      ]}
               </TextField>
             </Box>
           </Box>
@@ -312,7 +449,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     message: "Invalid characters in Referrer's Name",
                   },
                 }}
-                error={hasError("referredBy")}
+                error={hasFieldError("referredBy")}
                 helperText={getErrorMessage("referredBy")}
               />
             </Box>
@@ -340,7 +477,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     },
                   },
                 }}
-                error={hasError("referralContactNumber")}
+                error={hasFieldError("referralContactNumber")}
                 helperText={
                   getErrorMessage("referralContactNumber") || "Optional. Enter 10 digits only (6-9 first digit)"
                 }
@@ -361,7 +498,7 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
                     message: "Invalid characters or format",
                   },
                 }}
-                error={hasError("relationshipWithOfficer")}
+                error={hasFieldError("relationshipWithOfficer")}
                 helperText={getErrorMessage("relationshipWithOfficer")}
               />
             </Box>
@@ -384,6 +521,10 @@ const OfficerEmploymentDetailsForm: React.FC<OfficerEmploymentDetailsFormProps> 
           {errors.employmentDetails.root.message}
         </Box>
       )}
+
+      {/* Hidden fields to store IDs */}
+      <input type="hidden" {...register("employmentDetails.assignedDutyAreaId")} />
+      <input type="hidden" {...register("employmentDetails.areaManagerId")} />
     </Box>
   );
 };

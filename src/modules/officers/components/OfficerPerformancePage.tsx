@@ -15,10 +15,11 @@ const OfficerPerformancePage: React.FC = () => {
   const { officerName } = useParams<{ officerName: string }>();
 
   // Get officer data from context
-  const { getOfficerByName, loading } = useOfficers();
+  const { getOfficerByName, loading, initializeOfficers, initialized, officers } = useOfficers();
 
   // State for the current officer data
   const [officerData, setOfficerData] = useState<Officer | null>(null);
+  const [isLoadingOfficerData, setIsLoadingOfficerData] = useState<boolean>(true);
 
   const navigate = useNavigate();
 
@@ -27,7 +28,29 @@ const OfficerPerformancePage: React.FC = () => {
 
   // Find the officer data based on URL parameter when component mounts
   useEffect(() => {
-    if (officerName) {
+    const findAndSetOfficerData = async () => {
+      if (!officerName) {
+        setIsLoadingOfficerData(false);
+        return;
+      }
+
+      // If context is not initialized and not loading, initialize it
+      if (!initialized && !loading) {
+        console.log("🚀 Context not initialized, initializing officers...");
+        try {
+          await initializeOfficers();
+        } catch (error) {
+          console.error("❌ Failed to initialize officers:", error);
+          setIsLoadingOfficerData(false);
+          return;
+        }
+      }
+
+      // If we're still loading, wait
+      if (loading) {
+        return;
+      }
+
       // Try to find the officer by name (either exact or URL-formatted)
       const officer = getOfficerByName(officerName);
 
@@ -67,9 +90,20 @@ const OfficerPerformancePage: React.FC = () => {
           dateOfBirth: "",
           address: "",
         } as unknown as Officer);
+
+        console.log("⚠️ Officer not found in context, using placeholder:", {
+          searchName: officerName,
+          placeholderName: formattedName,
+          placeholderId: "unknown",
+          totalOfficersInContext: officers.length,
+        });
       }
-    }
-  }, [officerName, getOfficerByName]);
+
+      setIsLoadingOfficerData(false);
+    };
+
+    findAndSetOfficerData();
+  }, [officerName, getOfficerByName, initializeOfficers, initialized, loading, officers]);
 
   // Function to render stars based on trust score
   const renderStars = (score: number) => {
@@ -108,7 +142,7 @@ const OfficerPerformancePage: React.FC = () => {
   };
 
   // Show loading state while fetching officer data
-  if (loading || !officerData) {
+  if (isLoadingOfficerData || loading || !officerData) {
     return (
       <Box
         sx={{
@@ -121,7 +155,7 @@ const OfficerPerformancePage: React.FC = () => {
           gap: 2,
         }}
       >
-        {loading && <CircularProgress color="primary" />}
+        <CircularProgress color="primary" />
         <Typography sx={{ fontFamily: "Mukta", fontSize: "20px", color: "#707070" }}>
           Loading officer details...
         </Typography>

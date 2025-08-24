@@ -15,10 +15,11 @@ const GuardPerformancePage: React.FC = () => {
   const { guardName } = useParams<{ guardName: string }>();
 
   // Get guard data from context
-  const { getGuardByName, loading } = useGuards();
+  const { getGuardByName, loading, initializeGuards, initialized, guards } = useGuards();
 
   // State for the current guard data
   const [guardData, setGuardData] = useState<Guard | null>(null);
+  const [isLoadingGuardData, setIsLoadingGuardData] = useState<boolean>(true);
 
   // Active section state
   const [activeSection, setActiveSection] = useState<SectionType>("PERFORMANCE");
@@ -27,7 +28,29 @@ const GuardPerformancePage: React.FC = () => {
 
   // Find the guard data based on URL parameter when component mounts
   useEffect(() => {
-    if (guardName) {
+    const findAndSetGuardData = async () => {
+      if (!guardName) {
+        setIsLoadingGuardData(false);
+        return;
+      }
+
+      // If context is not initialized and not loading, initialize it
+      if (!initialized && !loading) {
+        console.log("🚀 Context not initialized, initializing guards...");
+        try {
+          await initializeGuards();
+        } catch (error) {
+          console.error("❌ Failed to initialize guards:", error);
+          setIsLoadingGuardData(false);
+          return;
+        }
+      }
+
+      // If we're still loading, wait
+      if (loading) {
+        return;
+      }
+
       // Try to find the guard by name (either exact or URL-formatted)
       const guard = getGuardByName(guardName);
 
@@ -71,10 +94,15 @@ const GuardPerformancePage: React.FC = () => {
           searchName: guardName,
           placeholderName: formattedName,
           placeholderId: "unknown",
+          totalGuardsInContext: guards.length,
         });
       }
-    }
-  }, [guardName, getGuardByName]);
+
+      setIsLoadingGuardData(false);
+    };
+
+    findAndSetGuardData();
+  }, [guardName, getGuardByName, initializeGuards, initialized, loading, guards]);
 
   // Function to render stars based on trust score
   const renderStars = (score: number) => {
@@ -118,7 +146,7 @@ const GuardPerformancePage: React.FC = () => {
   };
 
   // Show loading state while fetching guard data
-  if (loading || !guardData) {
+  if (isLoadingGuardData || loading || !guardData) {
     return (
       <Box
         sx={{
@@ -131,7 +159,7 @@ const GuardPerformancePage: React.FC = () => {
           gap: 2,
         }}
       >
-        {loading && <CircularProgress color="primary" />}
+        <CircularProgress color="primary" />
         <Typography sx={{ fontFamily: "Mukta", fontSize: "20px", color: "#707070" }}>
           Loading guard details...
         </Typography>

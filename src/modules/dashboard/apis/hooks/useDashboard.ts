@@ -152,7 +152,6 @@ export const useAreaOfficerTasks = (params: { opAgencyId: string; page?: number;
     queryKey: ["areaOfficerTasks", params],
     queryFn: () =>
       getTasks({
-        agencyId: params.opAgencyId,
         page: params.page,
         limit: params.limit,
       }),

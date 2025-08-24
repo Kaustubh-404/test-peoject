@@ -182,10 +182,10 @@ const ProfileWindow: React.FC = () => {
         },
       },
       employmentDetails: {
-        companyId: apiData.currentAgencyId,
+        companyId: apiData.currentAgency?.name || apiData.currentAgencyId,
         dateOfJoining: currentEmployment?.startDate || "",
-        guardType: currentEmployment?.position || "Security Guard",
-        psaraCertificationStatus: "Pending", // This would come from another field
+        guardType: apiData.guardType || currentEmployment?.position || "Security Guard",
+        psaraCertificationStatus: currentEmployment?.psaraStatus || "PENDING",
       },
       documentVerification: {
         documents: {
@@ -254,7 +254,7 @@ const ProfileWindow: React.FC = () => {
           dateOfJoining: displayData.employmentDetails.dateOfJoining
             ? displayData.employmentDetails.dateOfJoining.split("T")[0]
             : "",
-          guardType: displayData.employmentDetails.guardType,
+          guardType: guardProfileData.guardType || "", // Use the actual guard type ID from API
           psaraCertificationStatus: displayData.employmentDetails.psaraCertificationStatus,
         });
         break;
@@ -316,9 +316,9 @@ const ProfileWindow: React.FC = () => {
 
         case "employment":
           await employmentDetailsUpdate.updateEmploymentDetails(guardId, agencyId, {
-            position: editFormData.guardType,
-            startDate: editFormData.dateOfJoining,
-            psaraCertificationStatus: editFormData.psaraCertificationStatus,
+            guardType: editFormData.guardType, // Guard type ID
+            startDate: editFormData.dateOfJoining, // Now using 'employment' (singular) field
+            psaraCertificationStatus: editFormData.psaraCertificationStatus, // Now using 'employment' (singular) field
           });
           break;
 
@@ -533,6 +533,8 @@ const ProfileWindow: React.FC = () => {
               employmentDetails={displayData.employmentDetails}
               onEdit={() => handleEdit("employment")}
               isUpdating={isUpdating}
+              agencyId={agencyId || undefined}
+              guardTypeId={guardProfileData.guardType}
             />
           </Box>
 
@@ -579,6 +581,7 @@ const ProfileWindow: React.FC = () => {
         setFormData={setEditFormData}
         onSave={handleSaveChanges}
         isLoading={isUpdating}
+        agencyId={agencyId || undefined}
       />
 
       {/* Snackbar for notifications */}

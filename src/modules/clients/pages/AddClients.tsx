@@ -51,13 +51,13 @@ export default function AddClients() {
       contactDetails: {
         contactPerson: {
           fullName: "",
-          desgination: "",
+          designation: "",
           phoneNumber: "",
           email: "",
         },
         emergencyContact: {
           fullName: "",
-          desgination: "",
+          designation: "",
           phoneNumber: "",
           email: "",
         },
@@ -82,12 +82,19 @@ export default function AddClients() {
     ];
     const fieldsToValidate = currentStep === 1 ? step1Fields : [];
     const isStepValid = await trigger(fieldsToValidate as any);
-    let valid = isStepValid;
+
+    // Additional check for clientLogo since it's a File object
+    const hasLogo = clientLogo !== null;
+
+    let valid = isStepValid && (currentStep !== 1 || hasLogo);
     const newDisabledSteps: number[] = [];
-    if (!isStepValid || (currentStep === 1 && !clientLogo)) {
+
+    if (!valid) {
       newDisabledSteps.push(currentStep + 1);
     }
+
     setDisabledSteps(newDisabledSteps);
+
     if (valid) {
       setCurrentStep((prev) => Math.min(prev + 1, 3));
     }
@@ -111,13 +118,22 @@ export default function AddClients() {
     formData.append("pinCode", data.address.pincode);
     formData.append("state", data.address.state);
     formData.append("contactPersonFullName", data.contactDetails.contactPerson.fullName);
-    formData.append("designation", data.contactDetails.contactPerson.desgination);
+    formData.append("designation", data.contactDetails.contactPerson.designation);
     formData.append("contactPhone", data.contactDetails.contactPerson.phoneNumber);
     formData.append("contactEmail", data.contactDetails.contactPerson.email);
-    formData.append("emergencyContactName", data.contactDetails.emergencyContact.fullName);
-    formData.append("emergencyContactDesignation", data.contactDetails.emergencyContact.desgination);
-    formData.append("emergencyContactPhone", data.contactDetails.emergencyContact.phoneNumber);
-    formData.append("emergencyContactEmail", data.contactDetails.emergencyContact.email);
+
+    if (data.contactDetails.emergencyContact?.fullName) {
+      formData.append("emergencyContactName", data.contactDetails.emergencyContact.fullName);
+    }
+    if (data.contactDetails.emergencyContact?.designation) {
+      formData.append("emergencyContactDesignation", data.contactDetails.emergencyContact.designation);
+    }
+    if (data.contactDetails.emergencyContact?.phoneNumber) {
+      formData.append("emergencyContactPhone", data.contactDetails.emergencyContact.phoneNumber);
+    }
+    if (data.contactDetails.emergencyContact?.email) {
+      formData.append("emergencyContactEmail", data.contactDetails.emergencyContact.email);
+    }
 
     if (data.address.addressLine2) {
       formData.append("addressLine2", data.address.addressLine2);

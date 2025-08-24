@@ -4,7 +4,18 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CheckOutlinedIcon from "@mui/icons-material/CheckOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
-import { Alert, Box, Button, CircularProgress, Snackbar, Typography } from "@mui/material";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Snackbar,
+  Typography,
+} from "@mui/material";
 import React, { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +48,7 @@ const steps = [
 const AddNewGuard: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [successOpen, setSuccessOpen] = useState(false);
+  const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const navigate = useNavigate();
 
   // 🔥 NEW: Get auth context for agency ID
@@ -154,6 +166,62 @@ const AddNewGuard: React.FC = () => {
   const sameAsPermanent = watch("address.sameAsPermanent");
   const documentsVerification = watch("documentVerification.documents");
   const guardType = watch("employmentDetails.guardType");
+
+  // Check for existing draft on component mount
+  useEffect(() => {
+    const checkForDraft = () => {
+      try {
+        const draftData = localStorage.getItem("guardDraft");
+        if (draftData) {
+          const parsedDraft = JSON.parse(draftData);
+          console.log("📋 Found existing guard draft:", parsedDraft);
+          setDraftDialogOpen(true);
+        }
+      } catch (error) {
+        console.error("❌ Error parsing draft data:", error);
+        // Clear corrupted draft
+        localStorage.removeItem("guardDraft");
+      }
+    };
+
+    checkForDraft();
+  }, []);
+
+  // Load draft data into form
+  const loadDraft = () => {
+    try {
+      const draftData = localStorage.getItem("guardDraft");
+      if (draftData) {
+        const parsedDraft = JSON.parse(draftData);
+
+        // Reset form with draft data
+        reset(parsedDraft);
+
+        // Find the last completed step (step with data)
+        let lastStep = 1;
+        if (parsedDraft.personalDetails?.firstName) lastStep = Math.max(lastStep, 1);
+        if (parsedDraft.contactDetails?.mobileNumber) lastStep = Math.max(lastStep, 2);
+        if (parsedDraft.address?.permanentAddress?.addressLine1) lastStep = Math.max(lastStep, 3);
+        if (parsedDraft.employmentDetails?.companyId) lastStep = Math.max(lastStep, 4);
+        if (parsedDraft.documentVerification?.documents?.some((doc: any) => doc.isSelected))
+          lastStep = Math.max(lastStep, 5);
+
+        setCurrentStep(lastStep);
+        console.log(`✅ Draft loaded successfully, starting at step ${lastStep}`);
+      }
+    } catch (error) {
+      console.error("❌ Error loading draft:", error);
+      alert("Error loading draft. Starting with a fresh form.");
+    }
+    setDraftDialogOpen(false);
+  };
+
+  // Clear draft and start fresh
+  const clearDraftAndStartFresh = () => {
+    localStorage.removeItem("guardDraft");
+    setDraftDialogOpen(false);
+    console.log("🗑️ Draft cleared, starting fresh");
+  };
 
   // Handle step click from progress stepper (clickable steps)
   const handleStepClick = (stepId: number) => {
@@ -328,6 +396,10 @@ const AddNewGuard: React.FC = () => {
       setSuccessOpen(true);
       console.log("🎉 Guard created successfully!");
 
+      // Clear draft on successful submission
+      localStorage.removeItem("guardDraft");
+      console.log("🗑️ Draft cleared after successful submission");
+
       forceRefreshGuards()
         .then(() => {
           console.log("✅ Guards list refreshed");
@@ -342,9 +414,10 @@ const AddNewGuard: React.FC = () => {
 
   // Discard changes
   const handleDiscard = () => {
-    if (window.confirm("Are you sure you want to discard your changes?")) {
+    if (window.confirm("Are you sure you want to discard your changes? This will also delete any saved draft.")) {
       reset();
       resetCreateGuard();
+      localStorage.removeItem("guardDraft"); // Clear draft when discarding
       navigate("/guards");
     }
   };
@@ -352,9 +425,23 @@ const AddNewGuard: React.FC = () => {
   // Save draft to localStorage
   const handleSaveDraft = () => {
     const currentData = getValues();
-    localStorage.setItem("guardDraft", JSON.stringify(currentData));
-    console.log("💾 Draft saved to localStorage");
-    alert("Draft saved successfully!");
+
+    // Add metadata to draft
+    const draftWithMetadata = {
+      ...currentData,
+      _draftMetadata: {
+        savedAt: new Date().toISOString(),
+        currentStep: currentStep,
+        version: "1.0",
+      },
+    };
+
+    localStorage.setItem("guardDraft", JSON.stringify(draftWithMetadata));
+    console.log("💾 Guard draft saved to localStorage with metadata:", draftWithMetadata._draftMetadata);
+    alert("Draft saved successfully! You can continue from where you left off next time.");
+
+    // Redirect to guards list after saving draft
+    navigate("/guards");
   };
 
   // Close success snackbar and redirect
@@ -743,6 +830,48 @@ const AddNewGuard: React.FC = () => {
           </Box>
         </form>
       </Box>
+
+      {/* Draft Dialog */}
+      <Dialog open={draftDialogOpen} onClose={() => {}} maxWidth="sm" fullWidth disableEscapeKeyDown>
+        <DialogTitle sx={{ textAlign: "center", fontFamily: "Mukta", fontWeight: 600, color: "#2A77D5" }}>
+          📋 Draft Found
+        </DialogTitle>
+        <DialogContent>
+          <Typography sx={{ textAlign: "center", color: "#707070", mb: 2 }}>
+            You have a saved draft from a previous session. Would you like to continue where you left off or start
+            fresh?
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ justifyContent: "center", gap: 2, pb: 3 }}>
+          <Button
+            onClick={clearDraftAndStartFresh}
+            variant="outlined"
+            sx={{
+              color: "#707070",
+              borderColor: "#D0D0D0",
+              "&:hover": {
+                borderColor: "#A0A0A0",
+                backgroundColor: "#F5F5F5",
+              },
+            }}
+          >
+            Start Fresh
+          </Button>
+          <Button
+            onClick={loadDraft}
+            variant="contained"
+            sx={{
+              backgroundColor: "#2A77D5",
+              color: "#FFFFFF",
+              "&:hover": {
+                backgroundColor: "#1E5AA3",
+              },
+            }}
+          >
+            Continue Draft
+          </Button>
+        </DialogActions>
+      </Dialog>
     </div>
   );
 };

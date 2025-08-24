@@ -15,7 +15,9 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../../../../hooks/useAuth";
+import { useAreasAndManagers } from "../../hooks/useAreasAndManagers";
 
 // Base interface for all dialogs
 interface BaseEditDialogProps {
@@ -596,7 +598,7 @@ export const OfficerEmergencyContactEditDialog: React.FC<BaseEditDialogProps> = 
   );
 };
 
-// Officer Employment Details Edit Dialog
+// Officer Employment Details Edit Dialog - WITH DYNAMIC DROPDOWNS
 export const OfficerEmploymentDetailsEditDialog: React.FC<BaseEditDialogProps> = ({
   open,
   onClose,
@@ -605,6 +607,54 @@ export const OfficerEmploymentDetailsEditDialog: React.FC<BaseEditDialogProps> =
   onSave,
   isLoading,
 }) => {
+  const { user } = useAuth();
+  const [selectedAreaId, setSelectedAreaId] = useState<string>("");
+
+  // Use the areas and managers hooks
+  const {
+    areas,
+    managers,
+    isLoading: dataLoading,
+    hasError,
+    error,
+    getManagersByArea,
+  } = useAreasAndManagers(user?.agencyId || null);
+
+  // Set initial area selection based on form data
+  useEffect(() => {
+    if (formData.assignedArea && areas.length > 0) {
+      const area = areas.find((a) => a.name === formData.assignedArea);
+      if (area) {
+        setSelectedAreaId(area.id);
+      }
+    }
+  }, [formData.assignedArea, areas]);
+
+  // Handle area change
+  const handleAreaChange = (areaId: string) => {
+    setSelectedAreaId(areaId);
+    const selectedArea = areas.find((area) => area.id === areaId);
+
+    setFormData({
+      ...formData,
+      assignedArea: selectedArea?.name || "",
+      areaManager: "", // Clear manager when area changes
+    });
+  };
+
+  // Handle manager change
+  const handleManagerChange = (managerId: string) => {
+    const selectedManager = managers.find((manager) => manager.id === managerId);
+
+    setFormData({
+      ...formData,
+      areaManager: selectedManager?.fullName || "",
+    });
+  };
+
+  // Get available managers for selected area
+  const availableManagers = selectedAreaId ? getManagersByArea(selectedAreaId) : managers;
+
   return (
     <Dialog
       open={open}
@@ -625,6 +675,15 @@ export const OfficerEmploymentDetailsEditDialog: React.FC<BaseEditDialogProps> =
           <DialogHeader title="Employment Details" onClose={onClose} />
 
           <SectionHeader title="Employment Information" />
+
+          {/* Error Display */}
+          {hasError && (
+            <Box sx={{ p: 2, backgroundColor: "#FFEBEE", borderRadius: 1 }}>
+              <Typography color="error" variant="body2">
+                {error?.message || "Failed to load areas and managers"}
+              </Typography>
+            </Box>
+          )}
 
           <Box sx={{ display: "flex", flexDirection: "column", gap: "16px" }}>
             <TextField
@@ -660,47 +719,81 @@ export const OfficerEmploymentDetailsEditDialog: React.FC<BaseEditDialogProps> =
               sx={{ "& .MuiInputLabel-root": { fontFamily: "Mukta" } }}
             />
 
+            {/* Dynamic Assigned Area Dropdown */}
             <FormControl size="small" fullWidth>
               <Typography variant="body2" sx={{ mb: "8px", color: "#707070", fontFamily: "Mukta", fontSize: "12px" }}>
                 Assigned Area
               </Typography>
               <Select
-                value={formData.assignedArea || ""}
-                onChange={(e) => setFormData({ ...formData, assignedArea: e.target.value })}
+                value={selectedAreaId}
+                onChange={(e) => handleAreaChange(e.target.value as string)}
                 sx={{ borderRadius: "4px" }}
+                disabled={dataLoading || areas.length === 0}
               >
-                <MenuItem value="North Delhi">North Delhi</MenuItem>
-                <MenuItem value="South Delhi">South Delhi</MenuItem>
-                <MenuItem value="South East Delhi">South East Delhi</MenuItem>
-                <MenuItem value="South West Delhi">South West Delhi</MenuItem>
-                <MenuItem value="East Delhi">East Delhi</MenuItem>
-                <MenuItem value="West Delhi">West Delhi</MenuItem>
-                <MenuItem value="Central Delhi">Central Delhi</MenuItem>
-                <MenuItem value="New Delhi">New Delhi</MenuItem>
-                <MenuItem value="Gurgaon">Gurgaon</MenuItem>
-                <MenuItem value="Faridabad">Faridabad</MenuItem>
-                <MenuItem value="Noida">Noida</MenuItem>
-                <MenuItem value="Ghaziabad">Ghaziabad</MenuItem>
+                {dataLoading
+                  ? [
+                      <MenuItem key="loading-areas" disabled>
+                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                        Loading areas...
+                      </MenuItem>,
+                    ]
+                  : areas.length === 0
+                    ? [
+                        <MenuItem key="no-areas" disabled>
+                          No areas available
+                        </MenuItem>,
+                      ]
+                    : [
+                        <MenuItem key="select-area" value="">
+                          Select Area
+                        </MenuItem>,
+                        ...areas.map((area) => (
+                          <MenuItem key={area.id} value={area.id}>
+                            {area.name}
+                          </MenuItem>
+                        )),
+                      ]}
               </Select>
             </FormControl>
 
+            {/* Dynamic Area Manager Dropdown */}
             <FormControl size="small" fullWidth>
               <Typography variant="body2" sx={{ mb: "8px", color: "#707070", fontFamily: "Mukta", fontSize: "12px" }}>
                 Area Manager
               </Typography>
               <Select
-                value={formData.areaManager || ""}
-                onChange={(e) => setFormData({ ...formData, areaManager: e.target.value })}
+                value={
+                  // Find manager ID from name for controlled component
+                  managers.find((m) => m.fullName === formData.areaManager)?.id || ""
+                }
+                onChange={(e) => handleManagerChange(e.target.value as string)}
                 sx={{ borderRadius: "4px" }}
+                disabled={dataLoading || availableManagers.length === 0}
               >
-                <MenuItem value="Sachin Sharma">Sachin Sharma</MenuItem>
-                <MenuItem value="Anup Singh">Anup Singh</MenuItem>
-                <MenuItem value="Vishesh Singh">Vishesh Singh</MenuItem>
-                <MenuItem value="Prakash Kapoor">Prakash Kapoor</MenuItem>
-                <MenuItem value="Prabh Kumar">Prabh Kumar</MenuItem>
-                <MenuItem value="Rajesh Kumar">Rajesh Kumar</MenuItem>
-                <MenuItem value="Amit Gupta">Amit Gupta</MenuItem>
-                <MenuItem value="Suresh Yadav">Suresh Yadav</MenuItem>
+                {dataLoading
+                  ? [
+                      <MenuItem key="loading-managers" disabled>
+                        <CircularProgress size={16} sx={{ mr: 1 }} />
+                        Loading managers...
+                      </MenuItem>,
+                    ]
+                  : availableManagers.length === 0
+                    ? [
+                        <MenuItem key="no-managers" disabled>
+                          {selectedAreaId ? "No managers for selected area" : "Select an area first"}
+                        </MenuItem>,
+                      ]
+                    : [
+                        <MenuItem key="select-manager" value="">
+                          Select Area Manager
+                        </MenuItem>,
+                        ...availableManagers.map((manager) => (
+                          <MenuItem key={manager.id} value={manager.id}>
+                            {manager.fullName}
+                            {manager.area && ` (${manager.area.name})`}
+                          </MenuItem>
+                        )),
+                      ]}
               </Select>
             </FormControl>
           </Box>

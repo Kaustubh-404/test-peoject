@@ -47,7 +47,7 @@ export interface APIGuardAddress {
   pinCode: string;
   landmark: string | null;
   country: string;
-  type: "PERMANENT" | "TEMPORARY" | "CURRENT";
+  type: "PERMANENT" | "CURRENT";
   isPrimary: boolean;
   createdAt: string;
   updatedAt: string;
@@ -104,16 +104,25 @@ export interface APIEmployment {
   agencyId: string;
   startDate: string;
   endDate: string | null;
-  position: string;
-  salary: string;
+  position: string | null;
+  salary: string | null;
   terminationReason: string | null;
+  assignedDutyArea: string | null;
+  areaManager: string | null;
   isCurrentEmployer: boolean;
+  psaraStatus: string;
+  licenseNumber: string | null;
+  dateOfIssue: string | null;
+  validUntil: string | null;
+  valindIn: string | null;
   createdAt: string;
   updatedAt: string;
   agency: {
     id: string;
     name: string;
   };
+  // Add these for compatibility with the employment card
+  assignedArea?: string;
 }
 
 export interface APICurrentAgency {

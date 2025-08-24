@@ -15,8 +15,6 @@ import {
   type OfficerFormData,
 } from "../types/officers.types";
 
-// Helper function to calculate date of birth from age
-
 // Format phone numbers for API (backend expects 10 digits with +91 prefix)
 const formatPhoneNumber = (phoneNumber: string): string => {
   const cleaned = phoneNumber.replace(/[\s\-\(\)]/g, "");
@@ -42,7 +40,7 @@ const formatPhoneNumber = (phoneNumber: string): string => {
 
 // Transform form data to API request format
 const transformFormDataToApiRequest = (formData: OfficerFormData): CreateOfficerRequest => {
-  const { personalDetails, contactDetails, address, documentVerification } = formData;
+  const { personalDetails, contactDetails, address, employmentDetails, documentVerification } = formData;
 
   // Handle date of birth (only DOB, no age option)
   const dateOfBirth = personalDetails.dateOfBirth;
@@ -87,7 +85,7 @@ const transformFormDataToApiRequest = (formData: OfficerFormData): CreateOfficer
       pinCode: address.localAddress.pincode.trim(),
       landmark: address.localAddress.landmark?.trim() || "",
       country: "India",
-      type: AddressType.LOCAL,
+      type: AddressType.CURRENT,
       isPrimary: false,
     });
   }
@@ -189,6 +187,23 @@ const transformFormDataToApiRequest = (formData: OfficerFormData): CreateOfficer
     ? officerStatusMapping[formData.employmentDetails.status] || GuardStatus.ACTIVE
     : GuardStatus.ACTIVE;
 
+  // 🔥 FIXED: Build employment as single object (not array)
+  let employment = undefined;
+  if (employmentDetails.designation && employmentDetails.dateOfJoining) {
+    employment = {
+      position: employmentDetails.designation.trim(),
+      startDate: employmentDetails.dateOfJoining,
+      ...(employmentDetails.assignedDutyArea?.trim() && {
+        assignedDutyArea: employmentDetails.assignedDutyArea.trim(),
+      }),
+      ...(employmentDetails.areaManager?.trim() && { areaManager: employmentDetails.areaManager.trim() }),
+      ...(employmentDetails.assignedDutyAreaId?.trim() && {
+        assignedAreaId: employmentDetails.assignedDutyAreaId.trim(),
+      }),
+      ...(employmentDetails.areaManagerId?.trim() && { areaManagerId: employmentDetails.areaManagerId.trim() }),
+    };
+  }
+
   // Build the API request object
   const apiRequest: CreateOfficerRequest = {
     firstName: personalDetails.firstName.trim(),
@@ -218,6 +233,8 @@ const transformFormDataToApiRequest = (formData: OfficerFormData): CreateOfficer
     ...(emergencyContacts.length > 0 && { emergencyContacts }),
     ...(familyMembers.length > 0 && { familyMembers }),
     ...(documents.length > 0 && { documents }),
+    // 🔥 FIXED: Use single employment object instead of array
+    ...(employment && { employment }),
     // No files array - documents are verification only
   };
 
@@ -258,6 +275,9 @@ const transformToFormData = (apiRequest: CreateOfficerRequest): FormData => {
   if (apiRequest.emergencyContacts) formData.append("emergencyContacts", JSON.stringify(apiRequest.emergencyContacts));
   if (apiRequest.familyMembers) formData.append("familyMembers", JSON.stringify(apiRequest.familyMembers));
   if (apiRequest.documents) formData.append("documents", JSON.stringify(apiRequest.documents));
+
+  // 🔥 FIXED: Send employment as single object, not array
+  if (apiRequest.employment) formData.append("employment", JSON.stringify(apiRequest.employment));
 
   // No files to append - documents are verification only
 
@@ -309,6 +329,18 @@ export const officerService = {
       // Log document count (no files)
       const documentsCount = apiRequest.documents?.length || 0;
       console.log(`📊 Documents verified count: ${documentsCount}`);
+
+      // 🔥 FIXED: Log employment data (single object)
+      if (apiRequest.employment) {
+        console.log(`💼 Employment record:`, {
+          position: apiRequest.employment.position,
+          startDate: apiRequest.employment.startDate,
+          assignedDutyArea: apiRequest.employment.assignedDutyArea,
+          areaManager: apiRequest.employment.areaManager,
+        });
+      } else {
+        console.log(`💼 No employment data provided`);
+      }
 
       // Make the API request with multipart/form-data
       const response = await guardsApi.post<CreateOfficerResponse>(

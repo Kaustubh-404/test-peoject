@@ -69,10 +69,15 @@ export interface APIEmployment {
   agencyId: string;
   startDate: string;
   endDate: string | null;
-  position: string;
-  salary: string;
+  position: string | null;
+  salary: string | null;
   terminationReason: string | null;
   isCurrentEmployer: boolean;
+  psaraStatus: string; // PSARA certification status
+  licenseNumber: string | null;
+  dateOfIssue: string | null;
+  validUntil: string | null;
+  valindIn: string | null;
   createdAt: string;
   updatedAt: string;
   agency: {
@@ -104,6 +109,8 @@ export interface APIGuard {
   martialStatus: "SINGLE" | "MARRIED" | "DIVORCED" | "WIDOWED";
   photo: string;
   status: "PENDING" | "ACTIVE" | "INACTIVE" | "SUSPENDED";
+  guardType: string; // Guard type ID
+  userType: string;
   currentAgencyId: string;
   createdAt: string;
   updatedAt: string;

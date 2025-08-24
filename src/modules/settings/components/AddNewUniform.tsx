@@ -116,6 +116,7 @@ const AddNewUniform: React.FC = () => {
   const onSubmit = async (data: UniformDetails) => {
     console.log("Uniform form submitted:", data);
     alert("Uniform created successfully!");
+    navigate("/settings");
   };
 
   const handleDiscard = () => {
@@ -157,7 +158,7 @@ const AddNewUniform: React.FC = () => {
       {/* Header - Fixed outer part that doesn't change */}
       <div className="flex flex-row justify-between">
         <div className="flex flex-row items-center text-xl gap-2 font-semibold mb-2">
-          <ArrowBackIcon className="cursor-pointer" onClick={() => navigate("/uniforms")} />
+          <ArrowBackIcon className="cursor-pointer" onClick={() => navigate("/settings")} />
           <h2 className="">Add New Uniform</h2>
         </div>
 

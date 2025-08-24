@@ -514,13 +514,13 @@ export interface ClientFormData {
   contactDetails: {
     contactPerson: {
       fullName: string;
-      desgination: string; // Keep typo to match existing UI
+      designation: string; // Keep typo to match existing UI
       phoneNumber: string;
       email: string;
     };
     emergencyContact: {
       fullName: string;
-      desgination: string; // Keep typo to match existing UI
+      designation: string; // Keep typo to match existing UI
       phoneNumber: string;
       email: string;
     };

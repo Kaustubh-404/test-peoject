@@ -351,7 +351,7 @@ export const officerProfileService = {
               state: addr.state,
               pinCode: addr.pincode, // Note: API uses pinCode, not pincode
               landmark: addr.landmark || "",
-              type: "TEMPORARY",
+              type: "CURRENT",
               isPrimary: false,
               country: "India",
             });
@@ -408,20 +408,19 @@ export const officerProfileService = {
       apiData.familyMembers = familyMembers;
     }
 
-    // Employment details - IDENTICAL to guard service
+    // Employment details - Enhanced to include area and manager
     if (updateData.employmentDetails) {
       const emp = updateData.employmentDetails;
 
-      // For employment details, we need to update the employments array
-      // Since this is typically the current employment
-      if (emp.position || emp.startDate) {
-        apiData.employments = [
-          {
-            position: emp.position || null,
-            startDate: emp.startDate ? formatDateToISO(emp.startDate) : null,
-            isCurrentEmployer: true,
-          },
-        ];
+      // For employment details, we need to send as single employment object (not array)
+      // This matches the API DTO structure
+      if (emp.position || emp.startDate || emp.assignedArea || emp.areaManager) {
+        apiData.employment = {
+          position: emp.position || null,
+          startDate: emp.startDate ? formatDateToISO(emp.startDate) : null,
+          assignedDutyArea: emp.assignedArea || null,
+          areaManager: emp.areaManager || null,
+        };
       }
     }
 

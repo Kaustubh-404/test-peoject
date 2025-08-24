@@ -19,12 +19,12 @@ interface FormData {
   contactDetails: {
     contactPerson: {
       fullName: string;
-      desgination: string;
+      designation: string;
       phoneNumber: string;
     };
     emergencyContact: {
       fullName: string;
-      desgination: string;
+      designation: string;
       phoneNumber: string;
     };
   };
@@ -74,12 +74,12 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
         contactDetails: {
           contactPerson: {
             fullName: clientDetails.contactPersonFullName || "",
-            desgination: clientDetails.designation || "",
+            designation: clientDetails.designation || "",
             phoneNumber: clientDetails.contactPhone || "",
           },
           emergencyContact: {
             fullName: clientDetails.emergencyContactName || "",
-            desgination: clientDetails.emergencyContactDesignation || "",
+            designation: clientDetails.emergencyContactDesignation || "",
             phoneNumber: clientDetails.emergencyContactPhone || "",
           },
         },
@@ -131,8 +131,8 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
     if (data.contactDetails?.contactPerson?.fullName) {
       formData.append("contactPersonFullName", data.contactDetails.contactPerson.fullName);
     }
-    if (data.contactDetails?.contactPerson?.desgination) {
-      formData.append("designation", data.contactDetails.contactPerson.desgination);
+    if (data.contactDetails?.contactPerson?.designation) {
+      formData.append("designation", data.contactDetails.contactPerson.designation);
     }
     if (data.contactDetails?.contactPerson?.phoneNumber) {
       formData.append("contactPhone", data.contactDetails.contactPerson.phoneNumber);
@@ -147,8 +147,8 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
     if (data.contactDetails?.emergencyContact?.fullName) {
       formData.append("emergencyContactName", data.contactDetails.emergencyContact.fullName);
     }
-    if (data.contactDetails?.emergencyContact?.desgination) {
-      formData.append("emergencyContactDesignation", data.contactDetails.emergencyContact.desgination);
+    if (data.contactDetails?.emergencyContact?.designation) {
+      formData.append("emergencyContactDesignation", data.contactDetails.emergencyContact.designation);
     }
     if (data.contactDetails?.emergencyContact?.phoneNumber) {
       formData.append("emergencyContactPhone", data.contactDetails.emergencyContact.phoneNumber);
@@ -295,15 +295,15 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
               />
               <LabeledInput
                 label="Designation"
-                name="contactDetails.contactPerson.desgination"
+                name="contactDetails.contactPerson.designation"
                 placeholder="Enter Designation"
                 required
                 register={register}
                 validation={{
                   required: "Designation is required",
                 }}
-                error={!!(errors as any).contactDetails?.contactPerson?.desgination}
-                helperText={(errors as any).contactDetails?.contactPerson?.desgination?.message}
+                error={!!(errors as any).contactDetails?.contactPerson?.designation}
+                helperText={(errors as any).contactDetails?.contactPerson?.designation?.message}
               />
               <LabeledInput
                 label="Phone Number"
@@ -342,15 +342,15 @@ export const MainOfficeModal: React.FC<MainOfficeModalProps> = ({ open, onClose 
               />
               <LabeledInput
                 label="Designation"
-                name="contactDetails.emergencyContact.desgination"
+                name="contactDetails.emergencyContact.designation"
                 placeholder="Enter Designation"
                 required
                 register={register}
                 validation={{
                   required: "Designation is required",
                 }}
-                error={!!(errors as any).contactDetails?.emergencyContact?.desgination}
-                helperText={(errors as any).contactDetails?.emergencyContact?.desgination?.message}
+                error={!!(errors as any).contactDetails?.emergencyContact?.designation}
+                helperText={(errors as any).contactDetails?.emergencyContact?.designation?.message}
               />
               <LabeledInput
                 label="Phone Number"

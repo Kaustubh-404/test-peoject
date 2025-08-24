@@ -66,7 +66,6 @@ export interface TasksApiResponse {
 export const getClientTasks = async (filters: TasksFilters): Promise<TasksApiResponse> => {
   const queryParams = new URLSearchParams();
 
-  if (filters.agencyId) queryParams.append("agencyId", filters.agencyId);
   if (filters.clientId) queryParams.append("clientId", filters.clientId);
   if (filters.siteId) queryParams.append("siteId", filters.siteId);
   if (filters.areaOfficerId) queryParams.append("areaOfficerId", filters.areaOfficerId);
