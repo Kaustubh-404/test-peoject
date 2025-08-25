@@ -4,7 +4,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
-import { Box, Button, Dialog, DialogContent, Typography } from "@mui/material";
+import { Alert, Box, Button, CircularProgress, Dialog, DialogContent, Snackbar, Typography } from "@mui/material";
 import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +15,10 @@ import BasicDetailsForm from "../components/AddNewUniform-subComponents/BasicDet
 import UniformBottomForm from "../components/AddNewUniform-subComponents/UniformBottomForm";
 import UniformTopForm from "../components/AddNewUniform-subComponents/UniformTopForm";
 import UniformProgressStepper from "../components/UniformProgressStepper";
+
+// Import API service and utilities
+import UniformsApiService from "../services/api/uniformsApi";
+import { processTaggedElements, validateImageFiles } from "../utils/imageUtils";
 
 // Steps configuration - matches your Figma specifications
 const steps = [
@@ -33,23 +37,52 @@ interface UniformDetails {
     accessories: boolean;
   };
   uniformTop: {
-    // Add uniform top fields as needed
-    placeholder?: string;
+    photos?: File[];
+    taggedElements?: any[];
   };
   uniformBottom: {
-    // Add uniform bottom fields as needed
-    placeholder?: string;
+    photos?: File[];
+    taggedElements?: any[];
   };
   accessories: {
-    // Add accessories fields as needed
-    placeholder?: string;
+    photos?: File[];
+    taggedElements?: any[];
   };
 }
 
 const AddNewUniform: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [saveProgressOpen, setSaveProgressOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
+
+  // Snackbar state for notifications
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean;
+    message: string;
+    severity: "success" | "error" | "warning" | "info";
+  }>({
+    open: false,
+    message: "",
+    severity: "success",
+  });
+
+  // Store tagged elements from each step
+  const [uniformData, setUniformData] = useState<{
+    topTaggedElements: any[];
+    bottomTaggedElements: any[];
+    accessoryTaggedElements: any[];
+    topUploadedImages: File[];
+    bottomUploadedImages: File[];
+    accessoryUploadedImages: File[];
+  }>({
+    topTaggedElements: [],
+    bottomTaggedElements: [],
+    accessoryTaggedElements: [],
+    topUploadedImages: [],
+    bottomUploadedImages: [],
+    accessoryUploadedImages: [],
+  });
 
   const {
     register,
@@ -68,16 +101,31 @@ const AddNewUniform: React.FC = () => {
         accessories: false,
       },
       uniformTop: {
-        placeholder: "",
+        photos: [],
+        taggedElements: [],
       },
       uniformBottom: {
-        placeholder: "",
+        photos: [],
+        taggedElements: [],
       },
       accessories: {
-        placeholder: "",
+        photos: [],
+        taggedElements: [],
       },
     },
   });
+
+  const showSnackbar = (message: string, severity: "success" | "error" | "warning" | "info" = "success") => {
+    setSnackbar({
+      open: true,
+      message,
+      severity,
+    });
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
+  };
 
   const nextStep = async () => {
     let fieldsToValidate: string[] = [];
@@ -114,9 +162,90 @@ const AddNewUniform: React.FC = () => {
   };
 
   const onSubmit = async (data: UniformDetails) => {
-    console.log("Uniform form submitted:", data);
-    alert("Uniform created successfully!");
-    navigate("/settings");
+    setSubmitting(true);
+
+    try {
+      console.log("📝 Starting uniform submission process...");
+      console.log("Form data:", data);
+      console.log("Uniform data:", uniformData);
+
+      // Validate uniform name
+      if (!data.basicDetails.uniformName.trim()) {
+        throw new Error("Uniform name is required");
+      }
+
+      // Collect all tagged elements from different steps
+      const allTaggedElements = [
+        ...uniformData.topTaggedElements,
+        ...uniformData.bottomTaggedElements,
+        ...uniformData.accessoryTaggedElements,
+      ];
+
+      if (allTaggedElements.length === 0) {
+        throw new Error("Please tag at least one uniform element before submitting");
+      }
+
+      // Collect all uploaded images
+      const allUploadedImages = [
+        ...uniformData.topUploadedImages,
+        ...uniformData.bottomUploadedImages,
+        ...uniformData.accessoryUploadedImages,
+      ];
+
+      console.log(
+        `📝 Processing ${allTaggedElements.length} tagged elements from ${allUploadedImages.length} uploaded images`
+      );
+
+      // Process tagged elements and convert to files
+      const processedFiles = await processTaggedElements(
+        allTaggedElements,
+        allUploadedImages,
+        data.basicDetails.uniformName
+      );
+
+      console.log("📝 Processed files:", {
+        topPartFiles: processedFiles.topPartFiles.length,
+        bottomPartFiles: processedFiles.bottomPartFiles.length,
+        accessoryFiles: processedFiles.accessoryFiles.length,
+      });
+
+      // Validate files
+      const allFiles = [
+        ...processedFiles.topPartFiles,
+        ...processedFiles.bottomPartFiles,
+        ...processedFiles.accessoryFiles,
+      ];
+
+      const validationErrors = validateImageFiles(allFiles);
+      if (validationErrors.length > 0) {
+        throw new Error(`File validation failed: ${validationErrors.join(", ")}`);
+      }
+
+      // Prepare API request
+      const apiRequest = {
+        uniformName: data.basicDetails.uniformName.trim(),
+        topPartImages: processedFiles.topPartFiles,
+        bottomPartImages: processedFiles.bottomPartFiles,
+        accessoryImages: processedFiles.accessoryFiles,
+      };
+
+      console.log("📤 Submitting to API...");
+
+      // Call the API
+      const result = await UniformsApiService.createUniform(apiRequest);
+
+      console.log("✅ Uniform created successfully:", result);
+
+      showSnackbar("Uniform created successfully!", "success");
+
+      // Navigate back to settings after a short delay
+      navigate("/settings");
+    } catch (error: any) {
+      console.error("❌ Error creating uniform:", error);
+      showSnackbar(error.message || "Failed to create uniform", "error");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleDiscard = () => {
@@ -126,14 +255,42 @@ const AddNewUniform: React.FC = () => {
   };
 
   const handleSaveDraft = () => {
-    handleSubmit((data: any) => {
-      console.log("Saving uniform draft:", data);
-      alert("Draft saved successfully!");
-    })();
+    // TODO: Implement draft saving functionality
+    showSnackbar("Draft saved successfully!", "info");
   };
 
   const handleCancelSaveProgress = () => {
     setSaveProgressOpen(false);
+  };
+
+  // Callback to receive tagged elements from child components
+  const handleTaggedElementsUpdate = (step: string, taggedElements: any[], uploadedImages: File[]) => {
+    console.log(`📝 Updating tagged elements for ${step}:`, taggedElements.length);
+
+    setUniformData((prev) => {
+      switch (step) {
+        case "top":
+          return {
+            ...prev,
+            topTaggedElements: taggedElements,
+            topUploadedImages: uploadedImages,
+          };
+        case "bottom":
+          return {
+            ...prev,
+            bottomTaggedElements: taggedElements,
+            bottomUploadedImages: uploadedImages,
+          };
+        case "accessories":
+          return {
+            ...prev,
+            accessoryTaggedElements: taggedElements,
+            accessoryUploadedImages: uploadedImages,
+          };
+        default:
+          return prev;
+      }
+    });
   };
 
   // Styles for submit button when disabled
@@ -167,6 +324,7 @@ const AddNewUniform: React.FC = () => {
             <Button
               variant="contained"
               onClick={handleDiscard}
+              disabled={submitting}
               sx={{
                 display: "flex",
                 width: "105px",
@@ -180,6 +338,10 @@ const AddNewUniform: React.FC = () => {
                 "&:hover": {
                   backgroundColor: "#F5F5F5",
                 },
+                "&:disabled": {
+                  backgroundColor: "#F0F0F0",
+                  color: "#A3A3A3",
+                },
               }}
             >
               <DeleteOutlineOutlinedIcon
@@ -187,23 +349,25 @@ const AddNewUniform: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: "#2A77D5",
+                  color: submitting ? "#A3A3A3" : "#2A77D5",
                 }}
               />
               <Typography
                 sx={{
                   fontSize: "14px",
                   fontFamily: "Mukta",
-                  color: "#2A77D5",
+                  color: submitting ? "#A3A3A3" : "#2A77D5",
                   textTransform: "uppercase",
                 }}
               >
                 DISCARD
               </Typography>
             </Button>
+
             <Button
               variant="contained"
               onClick={handleSaveDraft}
+              disabled={submitting}
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -217,6 +381,10 @@ const AddNewUniform: React.FC = () => {
                 "&:hover": {
                   backgroundColor: "#F5F5F5",
                 },
+                "&:disabled": {
+                  backgroundColor: "#F0F0F0",
+                  color: "#A3A3A3",
+                },
               }}
             >
               <DraftsOutlinedIcon
@@ -224,23 +392,25 @@ const AddNewUniform: React.FC = () => {
                 sx={{
                   width: "16px",
                   height: "16px",
-                  color: "#2A77D5",
+                  color: submitting ? "#A3A3A3" : "#2A77D5",
                 }}
               />
               <Typography
                 sx={{
                   fontSize: "14px",
                   fontFamily: "Mukta",
-                  color: "#2A77D5",
+                  color: submitting ? "#A3A3A3" : "#2A77D5",
                   textTransform: "uppercase",
                 }}
               >
                 SAVE DRAFT
               </Typography>
             </Button>
+
             <Button
               variant="contained"
               onClick={currentStep === 4 ? handleSubmit(onSubmit) : undefined}
+              disabled={currentStep < 4 || submitting}
               sx={{
                 display: "flex",
                 alignItems: "center",
@@ -249,30 +419,34 @@ const AddNewUniform: React.FC = () => {
                 height: "33px",
                 borderRadius: "8px",
                 padding: "8px 16px",
-                backgroundColor: currentStep === 4 ? "#FFFFFF" : "#F0F0F0",
+                backgroundColor: currentStep === 4 && !submitting ? "#FFFFFF" : "#F0F0F0",
                 boxShadow: "0px 1px 4px 0px rgba(112, 112, 112, 0.2)",
                 "&:hover": {
-                  backgroundColor: currentStep === 4 ? "#F5F5F5" : "#F0F0F0",
+                  backgroundColor: currentStep === 4 && !submitting ? "#F5F5F5" : "#F0F0F0",
                 },
                 ...(currentStep < 4 && disabledSubmitBtnStyle),
               }}
-              disabled={currentStep < 4}
             >
-              <CheckOutlinedIcon
-                fontSize="small"
-                sx={{
-                  color: currentStep === 4 ? "#2A77D5" : "#A3A3A3",
-                }}
-              />
+              {submitting ? (
+                <CircularProgress size={16} sx={{ color: "#A3A3A3" }} />
+              ) : (
+                <CheckOutlinedIcon
+                  fontSize="small"
+                  sx={{
+                    color: currentStep === 4 ? "#2A77D5" : "#A3A3A3",
+                  }}
+                />
+              )}
               <Typography
                 sx={{
                   fontSize: "16px",
                   fontFamily: "Mukta",
-                  color: currentStep === 4 ? "#2A77D5" : "#A3A3A3",
+                  color: currentStep === 4 && !submitting ? "#2A77D5" : "#A3A3A3",
                   textTransform: "uppercase",
+                  whiteSpace: "nowrap", // 🔑 prevents wrapping
                 }}
               >
-                SUBMIT FORM
+                {submitting ? "SUBMITTING..." : "SUBMIT FORM"}
               </Typography>
             </Button>
           </div>
@@ -302,13 +476,37 @@ const AddNewUniform: React.FC = () => {
             <BasicDetailsForm register={register} errors={errors as any} watch={watch} setValue={setValue} />
           )}
           {currentStep === 2 && (
-            <UniformTopForm register={register} errors={errors as any} watch={watch} setValue={setValue} />
+            <UniformTopForm
+              register={register}
+              errors={errors as any}
+              watch={watch}
+              setValue={setValue}
+              onTaggedElementsUpdate={(taggedElements, uploadedImages) =>
+                handleTaggedElementsUpdate("top", taggedElements, uploadedImages)
+              }
+            />
           )}
           {currentStep === 3 && (
-            <UniformBottomForm register={register} errors={errors as any} watch={watch} setValue={setValue} />
+            <UniformBottomForm
+              register={register}
+              errors={errors as any}
+              watch={watch}
+              setValue={setValue}
+              onTaggedElementsUpdate={(taggedElements, uploadedImages) =>
+                handleTaggedElementsUpdate("bottom", taggedElements, uploadedImages)
+              }
+            />
           )}
           {currentStep === 4 && (
-            <AccessoriesForm register={register} errors={errors as any} watch={watch} setValue={setValue} />
+            <AccessoriesForm
+              register={register}
+              errors={errors as any}
+              watch={watch}
+              setValue={setValue}
+              onTaggedElementsUpdate={(taggedElements, uploadedImages) =>
+                handleTaggedElementsUpdate("accessories", taggedElements, uploadedImages)
+              }
+            />
           )}
 
           {/* Navigation Buttons - Fixed */}
@@ -325,6 +523,7 @@ const AddNewUniform: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={prevStep}
+                disabled={submitting}
                 sx={{
                   width: "101px",
                   height: "36px",
@@ -334,6 +533,10 @@ const AddNewUniform: React.FC = () => {
                   boxShadow: "0px 1px 4px 0px rgba(112, 112, 112, 0.2)",
                   "&:hover": {
                     backgroundColor: "#F5F5F5",
+                  },
+                  "&:disabled": {
+                    backgroundColor: "#F0F0F0",
+                    color: "#A3A3A3",
                   },
                 }}
               >
@@ -345,13 +548,13 @@ const AddNewUniform: React.FC = () => {
                     gap: "4px",
                   }}
                 >
-                  <ChevronLeftIcon sx={{ color: "#2A77D5", width: "16px", height: "16px" }} />
+                  <ChevronLeftIcon sx={{ color: submitting ? "#A3A3A3" : "#2A77D5", width: "16px", height: "16px" }} />
                   <Typography
                     sx={{
                       fontSize: "16px",
                       lineHeight: "24px",
                       fontFamily: "Mukta",
-                      color: "#2A77D5",
+                      color: submitting ? "#A3A3A3" : "#2A77D5",
                       fontWeight: "500",
                       textTransform: "uppercase",
                     }}
@@ -365,7 +568,10 @@ const AddNewUniform: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={nextStep}
-                endIcon={<ChevronRightIcon sx={{ color: "#2A77D5", width: "20px", height: "20px" }} />}
+                disabled={submitting}
+                endIcon={
+                  <ChevronRightIcon sx={{ color: submitting ? "#A3A3A3" : "#2A77D5", width: "20px", height: "20px" }} />
+                }
                 sx={{
                   width: "101px",
                   height: "36px",
@@ -380,6 +586,10 @@ const AddNewUniform: React.FC = () => {
                   "&:hover": {
                     backgroundColor: "#F5F5F5",
                   },
+                  "&:disabled": {
+                    backgroundColor: "#F0F0F0",
+                    color: "#A3A3A3",
+                  },
                 }}
               >
                 <Typography
@@ -387,7 +597,7 @@ const AddNewUniform: React.FC = () => {
                     fontSize: "16px",
                     lineHeight: "24px",
                     fontFamily: "Mukta",
-                    color: "#2A77D5",
+                    color: submitting ? "#A3A3A3" : "#2A77D5",
                     fontWeight: "500",
                     textTransform: "uppercase",
                   }}
@@ -400,18 +610,23 @@ const AddNewUniform: React.FC = () => {
               <Button
                 variant="contained"
                 type="submit"
+                disabled={submitting}
                 sx={{
                   borderRadius: "8px",
                   fontFamily: "Mukta",
                   textTransform: "uppercase",
                   backgroundColor: "#FFFFFF",
-                  color: "#2A77D5",
+                  color: submitting ? "#A3A3A3" : "#2A77D5",
                   "&:hover": {
                     backgroundColor: "#F5F5F5",
                   },
+                  "&:disabled": {
+                    backgroundColor: "#F0F0F0",
+                    color: "#A3A3A3",
+                  },
                 }}
               >
-                Submit
+                {submitting ? "Submitting..." : "Submit"}
               </Button>
             )}
           </Box>
@@ -438,24 +653,38 @@ const AddNewUniform: React.FC = () => {
               <Button
                 variant="contained"
                 onClick={handleSaveProgressConfirm}
+                disabled={submitting}
                 sx={{
                   backgroundColor: "#2A77D5",
+                  color: "#FFFFFF", // 🔑 always white text
                   "&:hover": {
                     backgroundColor: "#1E5AA3",
+                    color: "#FFFFFF", // keep white on hover too
+                  },
+                  "&:disabled": {
+                    backgroundColor: "#F0F0F0",
+                    color: "#A3A3A3", // gray when disabled
                   },
                 }}
               >
                 Yes
               </Button>
+
               <Button
                 variant="outlined"
                 onClick={handleCancelSaveProgress}
+                disabled={submitting}
                 sx={{
                   color: "#2A77D5",
                   borderColor: "#2A77D5",
                   "&:hover": {
                     borderColor: "#1E5AA3",
                     backgroundColor: "rgba(42, 119, 213, 0.04)",
+                  },
+                  "&:disabled": {
+                    backgroundColor: "#F0F0F0",
+                    color: "#A3A3A3",
+                    borderColor: "#A3A3A3",
                   },
                 }}
               >
@@ -465,6 +694,18 @@ const AddNewUniform: React.FC = () => {
           </Box>
         </DialogContent>
       </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={handleCloseSnackbar}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} variant="filled" sx={{ width: "100%" }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

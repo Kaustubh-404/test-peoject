@@ -1,10 +1,12 @@
-import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import CropSquareIcon from "@mui/icons-material/CropSquare";
-import DeleteIcon from "@mui/icons-material/Delete";
-import RadioButtonUncheckedIcon from "@mui/icons-material/RadioButtonUnchecked";
-import TimelineIcon from "@mui/icons-material/Timeline";
-import UploadIcon from "@mui/icons-material/Upload";
+import {
+  ChevronLeft as ChevronLeftIcon,
+  ChevronRight as ChevronRightIcon,
+  CropSquare as CropSquareIcon,
+  Delete as DeleteIcon,
+  RadioButtonUnchecked as RadioButtonUncheckedIcon,
+  Timeline as TimelineIcon,
+  Upload as UploadIcon,
+} from "@mui/icons-material";
 import { Box, Button, Dialog, DialogContent, IconButton, Typography } from "@mui/material";
 import React, { useEffect, useRef, useState } from "react";
 import type { UseFormRegister, UseFormSetValue, UseFormWatch } from "react-hook-form";
@@ -43,9 +45,10 @@ interface AccessoriesFormProps {
   errors: FormErrors;
   setValue?: UseFormSetValue<any>;
   watch?: UseFormWatch<any>;
+  onTaggedElementsUpdate?: (taggedElements: TaggedElement[], uploadedImages: File[]) => void;
 }
 
-const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
+const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue, onTaggedElementsUpdate }) => {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<"rectangle" | "circle" | "polyline">("rectangle");
@@ -63,6 +66,13 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
 
   const isUploadStage = uploadedImages.length === 0;
 
+  // Notify parent component when tagged elements change
+  useEffect(() => {
+    if (onTaggedElementsUpdate) {
+      onTaggedElementsUpdate(taggedElements, uploadedImages);
+    }
+  }, [taggedElements, uploadedImages, onTaggedElementsUpdate]);
+
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;
 
@@ -70,9 +80,13 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
       (file) => file.type.startsWith("image/") && file.size <= 2 * 1024 * 1024
     );
 
-    setUploadedImages(validFiles);
-    if (setValue) {
-      setValue("accessories.photos", validFiles);
+    if (validFiles.length > 0) {
+      setUploadedImages(validFiles);
+      setCurrentImageIndex(0);
+      if (setValue) {
+        setValue("accessories.photos", validFiles);
+      }
+      console.log(`Uploaded ${validFiles.length} files`);
     }
   };
 
@@ -80,6 +94,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
     fileInputRef.current?.click();
   };
 
+  // Load image on canvas when current image changes
   useEffect(() => {
     if (!canvasRef.current || !uploadedImages[currentImageIndex]) return;
 
@@ -87,16 +102,44 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const currentImage = uploadedImages[currentImageIndex];
+    const imageUrl = URL.createObjectURL(currentImage);
+
     const img = new Image();
     img.onload = () => {
-      canvas.width = 288;
-      canvas.height = 400;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      drawExistingTags(ctx);
+      if (imageRef.current) {
+        imageRef.current.src = imageUrl;
+        imageRef.current.onload = () => {
+          canvas.width = 288;
+          canvas.height = 400;
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(imageRef.current!, 0, 0, canvas.width, canvas.height);
+          drawExistingTags(ctx);
+        };
+      }
     };
-    img.src = URL.createObjectURL(uploadedImages[currentImageIndex]);
-  }, [currentImageIndex, uploadedImages, taggedElements]);
+
+    img.src = imageUrl;
+
+    return () => {
+      URL.revokeObjectURL(imageUrl);
+    };
+  }, [currentImageIndex, uploadedImages]);
+
+  // Redraw existing tags when they change
+  useEffect(() => {
+    if (!canvasRef.current || !uploadedImages[currentImageIndex] || !imageRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    if (imageRef.current.complete && imageRef.current.naturalWidth > 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
+      drawExistingTags(ctx);
+    }
+  }, [taggedElements, currentImageIndex]);
 
   const drawExistingTags = (ctx: CanvasRenderingContext2D) => {
     taggedElements
@@ -154,7 +197,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -162,10 +205,9 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
 
     const currentPos = getMousePos(e);
 
-    const img = imageRef.current;
-    if (img) {
+    if (imageRef.current.complete && imageRef.current.naturalWidth > 0) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
       drawExistingTags(ctx);
     }
 
@@ -372,6 +414,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
     setTagName("");
     setCurrentDrawing(null);
     setShowTagModal(false);
+    setPolylinePoints([]);
   };
 
   const deleteTaggedElement = (id: string) => {
@@ -379,11 +422,15 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
   };
 
   const goToPreviousImage = () => {
-    setCurrentImageIndex((prev) => Math.max(0, prev - 1));
+    if (currentImageIndex > 0) {
+      setCurrentImageIndex(currentImageIndex - 1);
+    }
   };
 
   const goToNextImage = () => {
-    setCurrentImageIndex((prev) => Math.min(uploadedImages.length - 1, prev + 1));
+    if (currentImageIndex < uploadedImages.length - 1) {
+      setCurrentImageIndex(currentImageIndex + 1);
+    }
   };
 
   if (isUploadStage) {
@@ -412,7 +459,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
         >
           <Typography
             sx={{
-              fontFamily: "Mukta",
+              fontFamily: "Mukta, sans-serif",
               fontWeight: 600,
               fontSize: "24px",
               lineHeight: "32px",
@@ -434,7 +481,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
           >
             <Typography
               sx={{
-                fontFamily: "Mukta",
+                fontFamily: "Mukta, sans-serif",
                 fontWeight: 400,
                 fontSize: "12px",
                 lineHeight: "16px",
@@ -472,7 +519,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
               />
               <Typography
                 sx={{
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 400,
                   fontSize: "12px",
                   lineHeight: "16px",
@@ -484,7 +531,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
               </Typography>
               <Typography
                 sx={{
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 400,
                   fontSize: "12px",
                   lineHeight: "16px",
@@ -534,7 +581,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
       >
         <Typography
           sx={{
-            fontFamily: "Mukta",
+            fontFamily: "Mukta, sans-serif",
             fontWeight: 600,
             fontSize: "24px",
             lineHeight: "32px",
@@ -542,7 +589,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
             color: "#2A77D5",
           }}
         >
-          ACCESSORIES
+          ACCESSORIES ({taggedElements.length} tagged)
         </Typography>
 
         <Box
@@ -556,7 +603,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
         >
           <Typography
             sx={{
-              fontFamily: "Mukta",
+              fontFamily: "Mukta, sans-serif",
               fontWeight: 400,
               fontSize: "12px",
               lineHeight: "16px",
@@ -669,6 +716,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                   width: "288px",
                   height: "400px",
                   border: "1px solid #00660E",
+                  position: "relative",
                 }}
               >
                 <canvas
@@ -724,6 +772,8 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    fontFamily: "Mukta, sans-serif",
+                    fontWeight: 500,
                   }}
                 >
                   {currentImageIndex + 1}
@@ -755,14 +805,14 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
             >
               <Typography
                 sx={{
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 400,
                   fontSize: "12px",
                   lineHeight: "16px",
                   color: "#707070",
                 }}
               >
-                Tagged Elements
+                Tagged Elements ({taggedElements.length})
               </Typography>
 
               <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -804,7 +854,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                     <Typography
                       sx={{
                         flex: 1,
-                        fontFamily: "Mukta",
+                        fontFamily: "Mukta, sans-serif",
                         fontWeight: 400,
                         fontSize: "14px",
                         lineHeight: "16px",
@@ -819,6 +869,39 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                     </IconButton>
                   </Box>
                 ))}
+                {taggedElements.length === 0 && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "200px",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontFamily: "Mukta, sans-serif",
+                        fontSize: "14px",
+                        color: "#A3A3A3",
+                        textAlign: "center",
+                      }}
+                    >
+                      No accessories tagged yet
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontFamily: "Mukta, sans-serif",
+                        fontSize: "12px",
+                        color: "#A3A3A3",
+                        textAlign: "center",
+                      }}
+                    >
+                      Draw shapes on the image to tag accessories like badges, belts, caps, etc.
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
           </Box>
@@ -841,7 +924,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
           >
             <Typography
               sx={{
-                fontFamily: "Mukta",
+                fontFamily: "Mukta, sans-serif",
                 fontWeight: 600,
                 fontSize: "14px",
                 lineHeight: "16px",
@@ -855,14 +938,14 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
             <Box sx={{ display: "flex", flexDirection: "column", gap: "8px" }}>
               <Typography
                 sx={{
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 400,
                   fontSize: "12px",
                   lineHeight: "16px",
                   color: "#707070",
                 }}
               >
-                Tagged Element
+                Tagged Element (e.g., badge, belt, cap, etc.)
               </Typography>
               <input
                 value={tagName}
@@ -875,7 +958,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                   border: "1px solid #A3A3A3",
                   padding: "0 16px",
                   background: "#FFFFFF",
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontSize: "14px",
                   outline: "none",
                   boxSizing: "border-box",
@@ -894,7 +977,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                   background: "#FFFFFF",
                   border: "1px solid #A3A3A3",
                   color: "#707070",
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 500,
                   fontSize: "16px",
                   textTransform: "uppercase",
@@ -917,7 +1000,7 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue }) => {
                   background: "#FFFFFF",
                   boxShadow: "0px 1px 4px 0px #70707033",
                   color: "#2A77D5",
-                  fontFamily: "Mukta",
+                  fontFamily: "Mukta, sans-serif",
                   fontWeight: 500,
                   fontSize: "16px",
                   textTransform: "uppercase",

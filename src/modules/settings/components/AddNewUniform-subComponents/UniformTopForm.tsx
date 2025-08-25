@@ -43,9 +43,10 @@ interface UniformTopFormProps {
   errors: FormErrors;
   setValue?: UseFormSetValue<any>;
   watch?: UseFormWatch<any>;
+  onTaggedElementsUpdate?: (taggedElements: TaggedElement[], uploadedImages: File[]) => void;
 }
 
-const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
+const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue, onTaggedElementsUpdate }) => {
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedTool, setSelectedTool] = useState<"rectangle" | "circle" | "polyline">("rectangle");
@@ -63,6 +64,13 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
 
   const isUploadStage = uploadedImages.length === 0;
 
+  // Notify parent component when tagged elements change
+  useEffect(() => {
+    if (onTaggedElementsUpdate) {
+      onTaggedElementsUpdate(taggedElements, uploadedImages);
+    }
+  }, [taggedElements, uploadedImages, onTaggedElementsUpdate]);
+
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;
 
@@ -74,6 +82,8 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
     if (setValue) {
       setValue("uniformTop.photos", validFiles);
     }
+
+    console.log(`📝 UniformTopForm: Uploaded ${validFiles.length} files`);
   };
 
   const handleUploadClick = () => {
@@ -87,16 +97,52 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const currentImage = uploadedImages[currentImageIndex];
+    const imageUrl = URL.createObjectURL(currentImage);
+
     const img = new Image();
     img.onload = () => {
+      // Store the loaded image in the ref for later use
+      if (imageRef.current) {
+        imageRef.current.src = imageUrl;
+      }
+
       canvas.width = 288;
       canvas.height = 400;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       drawExistingTags(ctx);
+
+      console.log(`📝 Image loaded for canvas: ${currentImage.name}`);
     };
-    img.src = URL.createObjectURL(uploadedImages[currentImageIndex]);
-  }, [currentImageIndex, uploadedImages, taggedElements]);
+
+    img.onerror = () => {
+      console.error("❌ Failed to load image:", currentImage.name);
+    };
+
+    img.src = imageUrl;
+
+    // Cleanup function to revoke the object URL
+    return () => {
+      URL.revokeObjectURL(imageUrl);
+    };
+  }, [currentImageIndex, uploadedImages]);
+
+  // Separate effect for redrawing existing tags when they change
+  useEffect(() => {
+    if (!canvasRef.current || !uploadedImages[currentImageIndex] || !imageRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Only redraw if we have a loaded image
+    if (imageRef.current.complete && imageRef.current.naturalWidth > 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
+      drawExistingTags(ctx);
+    }
+  }, [taggedElements]);
 
   const drawExistingTags = (ctx: CanvasRenderingContext2D) => {
     taggedElements
@@ -154,7 +200,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
   };
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasRef.current) return;
+    if (!canvasRef.current || !imageRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
@@ -162,10 +208,10 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
 
     const currentPos = getMousePos(e);
 
-    const img = imageRef.current;
-    if (img) {
+    // Only redraw if we have a loaded image
+    if (imageRef.current.complete && imageRef.current.naturalWidth > 0) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageRef.current, 0, 0, canvas.width, canvas.height);
       drawExistingTags(ctx);
     }
 
@@ -368,14 +414,23 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
       croppedImage,
     };
 
-    setTaggedElements((prev) => [...prev, newElement]);
+    setTaggedElements((prev) => {
+      const updated = [...prev, newElement];
+      console.log(`📝 UniformTopForm: Tagged element added - ${newElement.name}. Total: ${updated.length}`);
+      return updated;
+    });
+
     setTagName("");
     setCurrentDrawing(null);
     setShowTagModal(false);
   };
 
   const deleteTaggedElement = (id: string) => {
-    setTaggedElements((prev) => prev.filter((el) => el.id !== id));
+    setTaggedElements((prev) => {
+      const updated = prev.filter((el) => el.id !== id);
+      console.log(`📝 UniformTopForm: Tagged element removed. Total: ${updated.length}`);
+      return updated;
+    });
   };
 
   const goToPreviousImage = () => {
@@ -542,7 +597,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
             color: "#2A77D5",
           }}
         >
-          UNIFORM DETAILS - TOP
+          UNIFORM TOP ({taggedElements.length} tagged)
         </Typography>
 
         <Box
@@ -704,7 +759,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
               <Box
                 sx={{
                   width: "288px",
-                  height: "13px",
+                  height: "40px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
@@ -762,7 +817,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
                   color: "#707070",
                 }}
               >
-                Tagged Elements
+                Tagged Elements ({taggedElements.length})
               </Typography>
 
               <Box sx={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
@@ -819,6 +874,39 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
                     </IconButton>
                   </Box>
                 ))}
+                {taggedElements.length === 0 && (
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "200px",
+                      flexDirection: "column",
+                      gap: "8px",
+                    }}
+                  >
+                    <Typography
+                      sx={{
+                        fontFamily: "Mukta",
+                        fontSize: "14px",
+                        color: "#A3A3A3",
+                        textAlign: "center",
+                      }}
+                    >
+                      No uniform top elements tagged yet
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontFamily: "Mukta",
+                        fontSize: "12px",
+                        color: "#A3A3A3",
+                        textAlign: "center",
+                      }}
+                    >
+                      Draw shapes on the image to tag top elements like shirts, logos, collars, etc.
+                    </Typography>
+                  </Box>
+                )}
               </Box>
             </Box>
           </Box>
@@ -862,7 +950,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue }) => {
                   color: "#707070",
                 }}
               >
-                Tagged Element
+                Tagged Element (e.g., shirt logo, collar, pocket, etc.)
               </Typography>
               <input
                 value={tagName}
