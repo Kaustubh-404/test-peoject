@@ -18,7 +18,7 @@ import UniformProgressStepper from "../components/UniformProgressStepper";
 
 // Import API service and utilities
 import UniformsApiService from "../services/api/uniformsApi";
-import { processTaggedElements, validateImageFiles } from "../utils/imageUtils";
+import { cropImageFromCanvas, dataURLToFile, validateImageFiles } from "../utils/imageUtils";
 
 // Steps configuration - matches your Figma specifications
 const steps = [
@@ -161,6 +161,8 @@ const AddNewUniform: React.FC = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
+  // Updated onSubmit function for AddNewUniform component
+
   const onSubmit = async (data: UniformDetails) => {
     setSubmitting(true);
 
@@ -174,16 +176,12 @@ const AddNewUniform: React.FC = () => {
         throw new Error("Uniform name is required");
       }
 
-      // Collect all tagged elements from different steps
+      // Collect all tagged elements from different steps with source tracking
       const allTaggedElements = [
-        ...uniformData.topTaggedElements,
-        ...uniformData.bottomTaggedElements,
-        ...uniformData.accessoryTaggedElements,
+        ...uniformData.topTaggedElements.map((element) => ({ ...element, source: "top" })),
+        ...uniformData.bottomTaggedElements.map((element) => ({ ...element, source: "bottom" })),
+        ...uniformData.accessoryTaggedElements.map((element) => ({ ...element, source: "accessories" })),
       ];
-
-      if (allTaggedElements.length === 0) {
-        throw new Error("Please tag at least one uniform element before submitting");
-      }
 
       // Collect all uploaded images
       const allUploadedImages = [
@@ -192,14 +190,33 @@ const AddNewUniform: React.FC = () => {
         ...uniformData.accessoryUploadedImages,
       ];
 
-      console.log(
-        `📝 Processing ${allTaggedElements.length} tagged elements from ${allUploadedImages.length} uploaded images`
-      );
+      console.log(`📝 Processing data:`, {
+        uniformName: data.basicDetails.uniformName,
+        totalTaggedElements: allTaggedElements.length,
+        totalUploadedImages: allUploadedImages.length,
+        breakdown: {
+          topElements: uniformData.topTaggedElements.length,
+          topImages: uniformData.topUploadedImages.length,
+          bottomElements: uniformData.bottomTaggedElements.length,
+          bottomImages: uniformData.bottomUploadedImages.length,
+          accessoryElements: uniformData.accessoryTaggedElements.length,
+          accessoryImages: uniformData.accessoryUploadedImages.length,
+        },
+      });
 
-      // Process tagged elements and convert to files
-      const processedFiles = await processTaggedElements(
-        allTaggedElements,
-        allUploadedImages,
+      // Validate that we have at least some content
+      if (allTaggedElements.length === 0 && allUploadedImages.length === 0) {
+        throw new Error("Please upload at least one image or tag at least one uniform element before submitting");
+      }
+
+      // Process each category separately with their respective images
+      const processedFiles = await processTaggedElementsWithSeparateImages(
+        uniformData.topTaggedElements,
+        uniformData.bottomTaggedElements,
+        uniformData.accessoryTaggedElements,
+        uniformData.topUploadedImages,
+        uniformData.bottomUploadedImages,
+        uniformData.accessoryUploadedImages,
         data.basicDetails.uniformName
       );
 
@@ -207,21 +224,42 @@ const AddNewUniform: React.FC = () => {
         topPartFiles: processedFiles.topPartFiles.length,
         bottomPartFiles: processedFiles.bottomPartFiles.length,
         accessoryFiles: processedFiles.accessoryFiles.length,
+        details: {
+          topParts: {
+            baseImages: uniformData.topUploadedImages.length,
+            taggedElements: uniformData.topTaggedElements.length,
+            totalFiles: processedFiles.topPartFiles.length,
+          },
+          bottomParts: {
+            baseImages: uniformData.bottomUploadedImages.length,
+            taggedElements: uniformData.bottomTaggedElements.length,
+            totalFiles: processedFiles.bottomPartFiles.length,
+          },
+          accessories: {
+            baseImages: uniformData.accessoryUploadedImages.length,
+            taggedElements: uniformData.accessoryTaggedElements.length,
+            totalFiles: processedFiles.accessoryFiles.length,
+          },
+        },
       });
 
-      // Validate files
+      // Validate processed files
       const allFiles = [
         ...processedFiles.topPartFiles,
         ...processedFiles.bottomPartFiles,
         ...processedFiles.accessoryFiles,
       ];
 
+      if (allFiles.length === 0) {
+        throw new Error("No files were processed successfully. Please check your uploads and try again.");
+      }
+
       const validationErrors = validateImageFiles(allFiles);
       if (validationErrors.length > 0) {
         throw new Error(`File validation failed: ${validationErrors.join(", ")}`);
       }
 
-      // Prepare API request
+      // Prepare API request with properly categorized files
       const apiRequest = {
         uniformName: data.basicDetails.uniformName.trim(),
         topPartImages: processedFiles.topPartFiles,
@@ -229,23 +267,208 @@ const AddNewUniform: React.FC = () => {
         accessoryImages: processedFiles.accessoryFiles,
       };
 
-      console.log("📤 Submitting to API...");
+      console.log("📤 Submitting to API with:", {
+        uniformName: apiRequest.uniformName,
+        topPartImages: apiRequest.topPartImages.length,
+        bottomPartImages: apiRequest.bottomPartImages.length,
+        accessoryImages: apiRequest.accessoryImages.length,
+        totalFiles:
+          apiRequest.topPartImages.length + apiRequest.bottomPartImages.length + apiRequest.accessoryImages.length,
+      });
+
+      // Log file details for debugging
+      console.log("📎 File details:");
+      console.log(
+        "Top part files:",
+        apiRequest.topPartImages.map((f) => ({ name: f.name, size: `${(f.size / 1024).toFixed(1)}KB` }))
+      );
+      console.log(
+        "Bottom part files:",
+        apiRequest.bottomPartImages.map((f) => ({ name: f.name, size: `${(f.size / 1024).toFixed(1)}KB` }))
+      );
+      console.log(
+        "Accessory files:",
+        apiRequest.accessoryImages.map((f) => ({ name: f.name, size: `${(f.size / 1024).toFixed(1)}KB` }))
+      );
 
       // Call the API
       const result = await UniformsApiService.createUniform(apiRequest);
 
-      console.log("✅ Uniform created successfully:", result);
+      console.log("✅ Uniform created successfully:", {
+        id: result.id,
+        uniformName: result.uniformName,
+        topPartUrls: result.topPartUrls.length,
+        bottomPartUrls: result.bottomPartUrls.length,
+        accessoriesUrls: result.accessoriesUrls.length,
+        createdAt: result.createdAt,
+      });
 
-      showSnackbar("Uniform created successfully!", "success");
+      // Verify the result matches our expectations
+      console.log("🔍 Verifying categorization:");
+      console.log(`Expected -> Actual:
+      - Top parts: ${processedFiles.topPartFiles.length} -> ${result.topPartUrls.length}
+      - Bottom parts: ${processedFiles.bottomPartFiles.length} -> ${result.bottomPartUrls.length}  
+      - Accessories: ${processedFiles.accessoryFiles.length} -> ${result.accessoriesUrls.length}`);
 
-      // Navigate back to settings after a short delay
+      showSnackbar("Uniform created successfully! Check the categorization in the response.", "success");
+
+      // Navigate back to settings immediately (no delay)
       navigate("/settings");
     } catch (error: any) {
       console.error("❌ Error creating uniform:", error);
-      showSnackbar(error.message || "Failed to create uniform", "error");
+
+      // Provide more specific error messages based on the error type
+      let errorMessage = "Failed to create uniform";
+
+      if (error.message?.includes("File validation failed")) {
+        errorMessage = error.message;
+      } else if (error.message?.includes("Authentication")) {
+        errorMessage = "Authentication failed. Please log in again.";
+      } else if (error.message?.includes("Network")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (error.message?.includes("timeout")) {
+        errorMessage = "Upload timeout. Please try again with smaller images.";
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      showSnackbar(errorMessage, "error");
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // Helper function for processing tagged elements with separate images
+  const processTaggedElementsWithSeparateImages = async (
+    topElements: any[],
+    bottomElements: any[],
+    accessoryElements: any[],
+    topImages: File[],
+    bottomImages: File[],
+    accessoryImages: File[],
+    uniformName: string
+  ): Promise<{
+    topPartFiles: File[];
+    bottomPartFiles: File[];
+    accessoryFiles: File[];
+  }> => {
+    const topPartFiles: File[] = [];
+    const bottomPartFiles: File[] = [];
+    const accessoryFiles: File[] = [];
+
+    console.log("📝 Processing tagged elements with separate images...");
+
+    // Helper function to create base image files
+    const createBaseImageFiles = (images: File[], category: string): File[] => {
+      const baseFiles: File[] = [];
+      const timestamp = Date.now();
+      const sanitizedUniformName = uniformName.replace(/[^a-zA-Z0-9]/g, "_");
+
+      images.forEach((originalImage, index) => {
+        const extension = originalImage.name.split(".").pop() || "jpg";
+        const filename = `${sanitizedUniformName}_${category}_base_${index + 1}_${timestamp}.${extension}`;
+
+        const baseImageFile = new File([originalImage], filename, {
+          type: originalImage.type,
+          lastModified: originalImage.lastModified,
+        });
+
+        baseFiles.push(baseImageFile);
+        console.log(`📷 Created base image: ${filename} (${(baseImageFile.size / 1024).toFixed(1)} KB)`);
+      });
+
+      return baseFiles;
+    };
+
+    // Helper function to process tagged elements
+    const processTaggedElements = async (elements: any[], images: File[], category: string): Promise<File[]> => {
+      const files: File[] = [];
+
+      for (const element of elements) {
+        try {
+          const originalImage = images[element.imageIndex];
+          if (!originalImage) {
+            console.warn(
+              `⚠️ Original image not found for element ${element.id} at index ${element.imageIndex} in ${category}`
+            );
+            continue;
+          }
+
+          // Crop the image based on the tagged coordinates
+          const croppedDataURL = await cropImageFromCanvas(originalImage, element.coordinates, element.shape);
+
+          // Create meaningful filename
+          const timestamp = Date.now();
+          const sanitizedName = element.name.replace(/[^a-zA-Z0-9]/g, "_");
+          const sanitizedUniformName = uniformName.replace(/[^a-zA-Z0-9]/g, "_");
+          const filename = `${sanitizedUniformName}_${category}_${sanitizedName}_tagged_${timestamp}.png`;
+
+          const file = dataURLToFile(croppedDataURL, filename);
+          files.push(file);
+
+          console.log(`✅ Processed tagged element: "${element.name}" -> ${category.toUpperCase()} (${filename})`);
+        } catch (error) {
+          console.error(`❌ Error processing element ${element.id} ("${element.name}") in ${category}:`, error);
+        }
+      }
+
+      return files;
+    };
+
+    // Process TOP category
+    if (topImages.length > 0) {
+      console.log(`📝 Processing TOP category: ${topImages.length} base images, ${topElements.length} tagged elements`);
+
+      // Add base images first
+      const topBaseImages = createBaseImageFiles(topImages, "top");
+      topPartFiles.push(...topBaseImages);
+
+      // Add tagged elements
+      const topTaggedFiles = await processTaggedElements(topElements, topImages, "top");
+      topPartFiles.push(...topTaggedFiles);
+    }
+
+    // Process BOTTOM category
+    if (bottomImages.length > 0) {
+      console.log(
+        `📝 Processing BOTTOM category: ${bottomImages.length} base images, ${bottomElements.length} tagged elements`
+      );
+
+      // Add base images first
+      const bottomBaseImages = createBaseImageFiles(bottomImages, "bottom");
+      bottomPartFiles.push(...bottomBaseImages);
+
+      // Add tagged elements
+      const bottomTaggedFiles = await processTaggedElements(bottomElements, bottomImages, "bottom");
+      bottomPartFiles.push(...bottomTaggedFiles);
+    }
+
+    // Process ACCESSORIES category
+    if (accessoryImages.length > 0) {
+      console.log(
+        `📝 Processing ACCESSORIES category: ${accessoryImages.length} base images, ${accessoryElements.length} tagged elements`
+      );
+
+      // Add base images first
+      const accessoryBaseImages = createBaseImageFiles(accessoryImages, "accessories");
+      accessoryFiles.push(...accessoryBaseImages);
+
+      // Add tagged elements
+      const accessoryTaggedFiles = await processTaggedElements(accessoryElements, accessoryImages, "accessories");
+      accessoryFiles.push(...accessoryTaggedFiles);
+    }
+
+    console.log(`📊 Processing complete:
+    - Top parts: ${topPartFiles.length} files (${topImages.length} base + ${topElements.length} tagged)
+    - Bottom parts: ${bottomPartFiles.length} files (${bottomImages.length} base + ${bottomElements.length} tagged)  
+    - Accessories: ${accessoryFiles.length} files (${accessoryImages.length} base + ${accessoryElements.length} tagged)
+    - Total: ${topPartFiles.length + bottomPartFiles.length + accessoryFiles.length} files`);
+
+    return {
+      topPartFiles,
+      bottomPartFiles,
+      accessoryFiles,
+    };
   };
 
   const handleDiscard = () => {
@@ -264,27 +487,34 @@ const AddNewUniform: React.FC = () => {
   };
 
   // Callback to receive tagged elements from child components
+  // Update the handleTaggedElementsUpdate function to include source information
   const handleTaggedElementsUpdate = (step: string, taggedElements: any[], uploadedImages: File[]) => {
     console.log(`📝 Updating tagged elements for ${step}:`, taggedElements.length);
+
+    // Add source information to each tagged element
+    const taggedElementsWithSource = taggedElements.map((element) => ({
+      ...element,
+      source: step, // This will be "top", "bottom", or "accessories"
+    }));
 
     setUniformData((prev) => {
       switch (step) {
         case "top":
           return {
             ...prev,
-            topTaggedElements: taggedElements,
+            topTaggedElements: taggedElementsWithSource,
             topUploadedImages: uploadedImages,
           };
         case "bottom":
           return {
             ...prev,
-            bottomTaggedElements: taggedElements,
+            bottomTaggedElements: taggedElementsWithSource,
             bottomUploadedImages: uploadedImages,
           };
         case "accessories":
           return {
             ...prev,
-            accessoryTaggedElements: taggedElements,
+            accessoryTaggedElements: taggedElementsWithSource,
             accessoryUploadedImages: uploadedImages,
           };
         default:

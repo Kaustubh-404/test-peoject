@@ -19,6 +19,8 @@ export interface TaggedElement {
     points?: Point[];
   };
   croppedImage: string;
+  // Add source information to track which form step it came from
+  source?: "top" | "bottom" | "accessories";
 }
 
 /**
@@ -153,7 +155,23 @@ export const cropImageFromCanvas = (
 };
 
 /**
- * Enhanced categorization logic for tagged elements
+ * Determine category based on the source step (which form the element came from)
+ * This is more reliable than keyword matching
+ */
+export const categorizeBySource = (source?: string): "top" | "bottom" | "accessory" => {
+  switch (source) {
+    case "top":
+      return "top";
+    case "bottom":
+      return "bottom";
+    case "accessories":
+    default:
+      return "accessory";
+  }
+};
+
+/**
+ * Enhanced categorization logic for tagged elements (fallback only)
  */
 export const categorizeTaggedElement = (elementName: string): "top" | "bottom" | "accessory" => {
   const elementNameLower = elementName.toLowerCase().trim();
@@ -166,19 +184,24 @@ export const categorizeTaggedElement = (elementName: string): "top" | "bottom" |
     "jacket",
     "blazer",
     "vest",
-    "uniform",
-    "chest",
     "collar",
     "sleeve",
-    "pocket",
-    "logo",
-    "emblem",
-    "patch",
-    "button",
+    "chest",
     "shoulder",
     "upper",
     "tunic",
     "jumper",
+    "logo",
+    "emblem",
+    "patch",
+    "button",
+    "head",
+    "hair",
+    "face",
+    "nose",
+    "eye",
+    "mouth",
+    "neck",
   ];
 
   // Bottom part keywords (pants, skirts, lower body items)
@@ -197,6 +220,9 @@ export const categorizeTaggedElement = (elementName: string): "top" | "bottom" |
     "waist",
     "belt loop",
     "hem",
+    "foot",
+    "ankle",
+    "thigh",
   ];
 
   // Accessory keywords (everything else)
@@ -218,7 +244,6 @@ export const categorizeTaggedElement = (elementName: string): "top" | "bottom" |
     "strap",
     "buckle",
     "pin",
-    "button",
     "zipper",
     "velcro",
     "name tag",
@@ -232,7 +257,7 @@ export const categorizeTaggedElement = (elementName: string): "top" | "bottom" |
     "holder",
   ];
 
-  // Check for top keywords
+  // Check for top keywords first
   for (const keyword of topKeywords) {
     if (elementNameLower.includes(keyword)) {
       console.log(`📝 Categorized "${elementName}" as TOP (matched: ${keyword})`);
@@ -262,11 +287,41 @@ export const categorizeTaggedElement = (elementName: string): "top" | "bottom" |
 };
 
 /**
+ * Create base image files with proper naming
+ */
+export const createBaseImageFiles = (
+  uploadedImages: File[],
+  uniformName: string,
+  category: "top" | "bottom" | "accessory"
+): File[] => {
+  const baseImageFiles: File[] = [];
+  const timestamp = Date.now();
+  const sanitizedUniformName = uniformName.replace(/[^a-zA-Z0-9]/g, "_");
+
+  uploadedImages.forEach((originalImage, index) => {
+    // Create a new File with a descriptive name
+    const filename = `${sanitizedUniformName}_${category}_base_image_${index + 1}_${timestamp}.${originalImage.name.split(".").pop() || "jpg"}`;
+
+    // Create new File object with the original image data but new name
+    const baseImageFile = new File([originalImage], filename, {
+      type: originalImage.type,
+      lastModified: originalImage.lastModified,
+    });
+
+    baseImageFiles.push(baseImageFile);
+    console.log(`📷 Created base image: ${filename} (${(baseImageFile.size / 1024).toFixed(1)} KB)`);
+  });
+
+  return baseImageFiles;
+};
+
+/**
  * Process tagged elements and convert them to files organized by category
+ * Now includes base images and proper categorization
  */
 export const processTaggedElements = async (
-  taggedElements: TaggedElement[],
-  uploadedImages: File[],
+  allTaggedElements: TaggedElement[],
+  allUploadedImages: File[],
   uniformName: string
 ): Promise<{
   topPartFiles: File[];
@@ -277,55 +332,91 @@ export const processTaggedElements = async (
   const bottomPartFiles: File[] = [];
   const accessoryFiles: File[] = [];
 
-  console.log(`📝 Processing ${taggedElements.length} tagged elements...`);
+  console.log(`📝 Processing tagged elements and base images...`);
+  console.log(`📊 Input data:`, {
+    totalTaggedElements: allTaggedElements.length,
+    totalUploadedImages: allUploadedImages.length,
+  });
 
-  // Process each tagged element
-  for (const element of taggedElements) {
-    try {
-      const originalImage = uploadedImages[element.imageIndex];
-      if (!originalImage) {
-        console.warn(`⚠️ Original image not found for element ${element.id} at index ${element.imageIndex}`);
-        continue;
+  // Separate elements by their source step
+  const topElements = allTaggedElements.filter((el) => el.source === "top");
+  const bottomElements = allTaggedElements.filter((el) => el.source === "bottom");
+  const accessoryElements = allTaggedElements.filter((el) => el.source === "accessories");
+
+  console.log(`📊 Elements by source:`, {
+    top: topElements.length,
+    bottom: bottomElements.length,
+    accessories: accessoryElements.length,
+  });
+
+  // Helper function to process elements for a specific category
+  const processElementsForCategory = async (
+    elements: TaggedElement[],
+    categoryImages: File[],
+    category: "top" | "bottom" | "accessory",
+    targetFiles: File[]
+  ) => {
+    // First, add base images for this category
+    const baseImages = createBaseImageFiles(categoryImages, uniformName, category);
+    targetFiles.push(...baseImages);
+
+    // Then process tagged elements
+    for (const element of elements) {
+      try {
+        const originalImage = categoryImages[element.imageIndex];
+        if (!originalImage) {
+          console.warn(
+            `⚠️ Original image not found for element ${element.id} at index ${element.imageIndex} in ${category}`
+          );
+          continue;
+        }
+
+        // Crop the image based on the tagged coordinates
+        const croppedDataURL = await cropImageFromCanvas(originalImage, element.coordinates, element.shape);
+
+        // Create meaningful filename
+        const timestamp = Date.now();
+        const sanitizedName = element.name.replace(/[^a-zA-Z0-9]/g, "_");
+        const sanitizedUniformName = uniformName.replace(/[^a-zA-Z0-9]/g, "_");
+        const filename = `${sanitizedUniformName}_${category}_${sanitizedName}_tagged_${timestamp}.png`;
+
+        const file = dataURLToFile(croppedDataURL, filename);
+        targetFiles.push(file);
+
+        console.log(`✅ Processed tagged element: "${element.name}" -> ${category.toUpperCase()} (${filename})`);
+      } catch (error) {
+        console.error(`❌ Error processing element ${element.id} ("${element.name}") in ${category}:`, error);
       }
-
-      // Crop the image based on the tagged coordinates
-      const croppedDataURL = await cropImageFromCanvas(originalImage, element.coordinates, element.shape);
-
-      // Create meaningful filename with timestamp to avoid conflicts
-      const timestamp = Date.now();
-      const sanitizedName = element.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const sanitizedUniformName = uniformName.replace(/[^a-zA-Z0-9]/g, "_");
-      const filename = `${sanitizedUniformName}_${sanitizedName}_${timestamp}.png`;
-
-      const file = dataURLToFile(croppedDataURL, filename);
-
-      // Categorize the element intelligently
-      const category = categorizeTaggedElement(element.name);
-
-      // Add to appropriate category
-      switch (category) {
-        case "top":
-          topPartFiles.push(file);
-          break;
-        case "bottom":
-          bottomPartFiles.push(file);
-          break;
-        case "accessory":
-        default:
-          accessoryFiles.push(file);
-          break;
-      }
-
-      console.log(`✅ Processed element: "${element.name}" -> ${category.toUpperCase()} (${filename})`);
-    } catch (error) {
-      console.error(`❌ Error processing element ${element.id} ("${element.name}"):`, error);
     }
-  }
+  };
+
+  // Process each category separately
+  // We need to separate uploaded images by category based on the step they came from
+
+  // For now, we'll work with the existing structure where all images are mixed
+  // But we need to track which images belong to which step
+
+  // Since we don't have step separation in the current structure,
+  // we'll use the element source to determine which images to process
+
+  const topImageIndices = new Set(topElements.map((el) => el.imageIndex));
+  const bottomImageIndices = new Set(bottomElements.map((el) => el.imageIndex));
+  const accessoryImageIndices = new Set(accessoryElements.map((el) => el.imageIndex));
+
+  // Create separate image arrays (this is a workaround - ideally images should be separated by step)
+  const topImages = allUploadedImages.filter((_, index) => topImageIndices.has(index));
+  const bottomImages = allUploadedImages.filter((_, index) => bottomImageIndices.has(index));
+  const accessoryImages = allUploadedImages.filter((_, index) => accessoryImageIndices.has(index));
+
+  // Process each category
+  await processElementsForCategory(topElements, topImages, "top", topPartFiles);
+  await processElementsForCategory(bottomElements, bottomImages, "bottom", bottomPartFiles);
+  await processElementsForCategory(accessoryElements, accessoryImages, "accessory", accessoryFiles);
 
   console.log(`📊 Processing complete:
-    - Top parts: ${topPartFiles.length} files
-    - Bottom parts: ${bottomPartFiles.length} files  
-    - Accessories: ${accessoryFiles.length} files
+    - Top parts: ${topPartFiles.length} files (${topImages.length} base + ${topElements.length} tagged)
+    - Bottom parts: ${bottomPartFiles.length} files (${bottomImages.length} base + ${bottomElements.length} tagged)
+    - Accessories: ${accessoryFiles.length} files (${accessoryImages.length} base + ${accessoryElements.length} tagged)
     - Total: ${topPartFiles.length + bottomPartFiles.length + accessoryFiles.length} files`);
 
   return {
