@@ -19,6 +19,10 @@ export interface CreateUniformRequest {
   accessoryImages?: File[];
 }
 
+export interface DeleteImageRequest {
+  imageUrl: string;
+}
+
 // API Response wrapper interface
 interface ApiResponse<T> {
   success: boolean;
@@ -127,10 +131,12 @@ export class UniformsApiService {
     try {
       console.log("📝 Fetching uniforms for agency:", agencyId);
 
-      const response = await authApi.get<ApiResponse<AgencyUniform[]>>(`/agency-uniforms/${agencyId}`);
+      const response = await authApi.get<ApiResponse<{ data: AgencyUniform[] }>>(
+        `/agency-uniforms?agencyId=${agencyId}&orderBy=createdAt&sortOrder=desc`
+      );
 
-      console.log("✅ Uniforms fetched successfully:", response.data.data.length, "uniforms");
-      return response.data.data;
+      console.log("✅ Uniforms fetched successfully:", response.data.data.data.length, "uniforms");
+      return response.data.data.data;
     } catch (error: any) {
       console.error("❌ Error fetching uniforms:", error.response?.data || error.message);
       throw new Error(error.response?.data?.message || "Failed to fetch uniforms");
@@ -200,7 +206,7 @@ export class UniformsApiService {
   }
 
   /**
-   * Delete a uniform
+   * Delete a uniform completely
    */
   static async deleteUniform(id: string): Promise<void> {
     try {
@@ -212,6 +218,35 @@ export class UniformsApiService {
     } catch (error: any) {
       console.error("❌ Error deleting uniform:", error.response?.data || error.message);
       throw new Error(error.response?.data?.message || "Failed to delete uniform");
+    }
+  }
+
+  /**
+   * Delete a specific image from a uniform
+   */
+  static async deleteUniformImage(id: string, imageUrl: string): Promise<AgencyUniform> {
+    try {
+      console.log("📝 Deleting uniform image:", { id, imageUrl });
+
+      const requestData: DeleteImageRequest = {
+        imageUrl: imageUrl,
+      };
+
+      const response = await authApi.patch<ApiResponse<AgencyUniform>>(
+        `/agency-uniforms/${id}/delete-image`,
+        requestData,
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("✅ Uniform image deleted successfully");
+      return response.data.data;
+    } catch (error: any) {
+      console.error("❌ Error deleting uniform image:", error.response?.data || error.message);
+      throw new Error(error.response?.data?.message || "Failed to delete uniform image");
     }
   }
 }

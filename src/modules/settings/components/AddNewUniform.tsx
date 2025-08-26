@@ -5,7 +5,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
 import { Alert, Box, Button, CircularProgress, Dialog, DialogContent, Snackbar, Typography } from "@mui/material";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
@@ -161,7 +161,40 @@ const AddNewUniform: React.FC = () => {
     setCurrentStep((prev) => Math.max(prev - 1, 1));
   };
 
-  // Updated onSubmit function for AddNewUniform component
+  // FIXED: Memoized callback to prevent infinite re-renders
+  const handleTaggedElementsUpdate = useCallback((step: string, taggedElements: any[], uploadedImages: File[]) => {
+    console.log(`📝 Updating tagged elements for ${step}:`, taggedElements.length);
+
+    const taggedElementsWithSource = taggedElements.map((element) => ({
+      ...element,
+      source: step,
+    }));
+
+    setUniformData((prev) => {
+      switch (step) {
+        case "top":
+          return {
+            ...prev,
+            topTaggedElements: taggedElementsWithSource,
+            topUploadedImages: uploadedImages,
+          };
+        case "bottom":
+          return {
+            ...prev,
+            bottomTaggedElements: taggedElementsWithSource,
+            bottomUploadedImages: uploadedImages,
+          };
+        case "accessories":
+          return {
+            ...prev,
+            accessoryTaggedElements: taggedElementsWithSource,
+            accessoryUploadedImages: uploadedImages,
+          };
+        default:
+          return prev;
+      }
+    });
+  }, []); // Empty dependency array - we only use setState which is stable
 
   const onSubmit = async (data: UniformDetails) => {
     setSubmitting(true);
@@ -486,43 +519,6 @@ const AddNewUniform: React.FC = () => {
     setSaveProgressOpen(false);
   };
 
-  // Callback to receive tagged elements from child components
-  // Update the handleTaggedElementsUpdate function to include source information
-  const handleTaggedElementsUpdate = (step: string, taggedElements: any[], uploadedImages: File[]) => {
-    console.log(`📝 Updating tagged elements for ${step}:`, taggedElements.length);
-
-    // Add source information to each tagged element
-    const taggedElementsWithSource = taggedElements.map((element) => ({
-      ...element,
-      source: step, // This will be "top", "bottom", or "accessories"
-    }));
-
-    setUniformData((prev) => {
-      switch (step) {
-        case "top":
-          return {
-            ...prev,
-            topTaggedElements: taggedElementsWithSource,
-            topUploadedImages: uploadedImages,
-          };
-        case "bottom":
-          return {
-            ...prev,
-            bottomTaggedElements: taggedElementsWithSource,
-            bottomUploadedImages: uploadedImages,
-          };
-        case "accessories":
-          return {
-            ...prev,
-            accessoryTaggedElements: taggedElementsWithSource,
-            accessoryUploadedImages: uploadedImages,
-          };
-        default:
-          return prev;
-      }
-    });
-  };
-
   // Styles for submit button when disabled
   const disabledSubmitBtnStyle = {
     width: "149px",
@@ -673,7 +669,7 @@ const AddNewUniform: React.FC = () => {
                   fontFamily: "Mukta",
                   color: currentStep === 4 && !submitting ? "#2A77D5" : "#A3A3A3",
                   textTransform: "uppercase",
-                  whiteSpace: "nowrap", // 🔑 prevents wrapping
+                  whiteSpace: "nowrap",
                 }}
               >
                 {submitting ? "SUBMITTING..." : "SUBMIT FORM"}

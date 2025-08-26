@@ -69,7 +69,7 @@ const UniformBottomForm: React.FC<UniformBottomFormProps> = ({ setValue, onTagge
     if (onTaggedElementsUpdate) {
       onTaggedElementsUpdate(taggedElements, uploadedImages);
     }
-  }, [taggedElements, uploadedImages, onTaggedElementsUpdate]);
+  }, [taggedElements, uploadedImages]);
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;

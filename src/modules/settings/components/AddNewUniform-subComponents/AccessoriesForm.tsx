@@ -66,12 +66,12 @@ const AccessoriesForm: React.FC<AccessoriesFormProps> = ({ setValue, onTaggedEle
 
   const isUploadStage = uploadedImages.length === 0;
 
-  // Notify parent component when tagged elements change
+  // FIXED: Remove onTaggedElementsUpdate from dependency array to prevent infinite re-renders
   useEffect(() => {
     if (onTaggedElementsUpdate) {
       onTaggedElementsUpdate(taggedElements, uploadedImages);
     }
-  }, [taggedElements, uploadedImages, onTaggedElementsUpdate]);
+  }, [taggedElements, uploadedImages]); // Removed onTaggedElementsUpdate from dependencies
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;

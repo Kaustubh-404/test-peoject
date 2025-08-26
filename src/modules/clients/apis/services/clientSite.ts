@@ -24,3 +24,8 @@ export const getClientSitesWithCounts = async (
   const { get } = useApi;
   return get(`/client-sites/count/${clientId}?limit=${limit}&page=${page}`);
 };
+
+export const updateSiteGeofence = async (siteId: string, data: any) => {
+  const { patch } = useApi;
+  return patch(`/sites/${siteId}/geofence`, data);
+};

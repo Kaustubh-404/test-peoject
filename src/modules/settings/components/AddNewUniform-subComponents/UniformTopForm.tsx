@@ -69,7 +69,7 @@ const UniformTopForm: React.FC<UniformTopFormProps> = ({ setValue, onTaggedEleme
     if (onTaggedElementsUpdate) {
       onTaggedElementsUpdate(taggedElements, uploadedImages);
     }
-  }, [taggedElements, uploadedImages, onTaggedElementsUpdate]);
+  }, [taggedElements, uploadedImages]);
 
   const handleFileUpload = (files: FileList | null) => {
     if (!files) return;

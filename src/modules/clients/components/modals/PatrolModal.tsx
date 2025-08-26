@@ -85,7 +85,28 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
       })) || [],
   });
 
-  const initialRoutes = siteData?.patrolRoutes?.length > 0 ? siteData.patrolRoutes.map(transformRouteData) : [];
+  const initialRoutes =
+    siteData?.patrolRoutes?.length > 0
+      ? siteData.patrolRoutes.map(transformRouteData)
+      : [
+          {
+            name: "",
+            routeCode: "",
+            patrolFrequency: {
+              type: "time",
+              hours: 1,
+              minutes: 0,
+              numberOfPatrols: 1,
+            },
+            patrolCheckpoints: [
+              {
+                type: "qr code",
+                qrCode: "",
+                photo: "",
+              },
+            ],
+          },
+        ];
 
   const {
     register,
@@ -131,24 +152,47 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     }
   }, [reset, routeFields.length, initialRoutes]);
 
-  // Reset form data when modal opens with fresh siteData
   useEffect(() => {
-    if (open && siteData) {
-      const freshRoutes = siteData?.patrolRoutes?.length > 0 ? siteData.patrolRoutes.map(transformRouteData) : [];
+    if (open) {
+      const freshRoutes =
+        siteData?.patrolRoutes?.length > 0
+          ? siteData.patrolRoutes.map(transformRouteData)
+          : [
+              {
+                name: "",
+                routeCode: "",
+                patrolFrequency: {
+                  type: "time",
+                  hours: 1,
+                  minutes: 0,
+                  numberOfPatrols: 1,
+                },
+                patrolCheckpoints: [
+                  {
+                    type: "qr code",
+                    qrCode: "",
+                    photo: "",
+                  },
+                ],
+              },
+            ];
+
       reset({
         patroling: {
           patrolRouteDetails: freshRoutes,
         },
       });
 
-      // Reset checkpoint files for the active route
-      if (freshRoutes.length > 0 && freshRoutes[activeRouteIndex]?.patrolCheckpoints) {
-        const checkpointCount = freshRoutes[activeRouteIndex].patrolCheckpoints.length;
+      if (freshRoutes.length > 0 && freshRoutes[0]?.patrolCheckpoints) {
+        const checkpointCount = freshRoutes[0].patrolCheckpoints.length;
         const resetFiles = Array(checkpointCount).fill({ qrFile: null, photoFile: null, locationFile: null });
         setCheckpointFiles(resetFiles);
       }
+
+      setActiveRouteIndex(0);
+      setPatrolFrequency(freshRoutes[0]?.patrolFrequency?.type === "count");
     }
-  }, [open, siteData, reset, activeRouteIndex]);
+  }, [open, siteData, reset]);
 
   useEffect(() => {
     if (routeFields.length > 0) {
@@ -159,11 +203,9 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     }
   }, [activeRouteIndex, watch, routeFields.length]);
 
-  // Reset form values when switching to a new empty route
   useEffect(() => {
     const currentRoute = watch(`patroling.patrolRouteDetails.${activeRouteIndex}`);
     if (currentRoute && !currentRoute.name && !currentRoute.routeCode) {
-      // This is a new empty route, ensure frequency is reset to default
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.type`, "time");
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 1);
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
@@ -174,9 +216,15 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
 
   const handleQrUpload = (file: File | null, index: number) => {
     if (file) {
-      if (file.size > 10 * 1024 * 1024) return;
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
-      if (!allowedTypes.includes(file.type)) return;
+      if (file.size > 10 * 1024 * 1024) {
+        alert("File size exceeds 10MB. Please choose a smaller file.");
+        return;
+      }
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      if (!allowedTypes.includes(file.type)) {
+        alert("Only JPEG, JPG, and PNG files are allowed.");
+        return;
+      }
     }
     setCheckpointFiles((prev) => {
       const updated = [...prev];
@@ -187,9 +235,15 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
 
   const handlePhotoUpload = (file: File | null, index: number) => {
     if (file) {
-      if (file.size > 10 * 1024 * 1024) return;
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
-      if (!allowedTypes.includes(file.type)) return;
+      if (file.size > 10 * 1024 * 1024) {
+        alert("File size exceeds 10MB. Please choose a smaller file.");
+        return;
+      }
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      if (!allowedTypes.includes(file.type)) {
+        alert("Only JPEG, JPG, and PNG files are allowed.");
+        return;
+      }
     }
     setCheckpointFiles((prev) => {
       const updated = [...prev];
@@ -200,9 +254,15 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
 
   const handleLocationUpload = (file: File | null, index: number) => {
     if (file) {
-      if (file.size > 10 * 1024 * 1024) return;
-      const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/gif"];
-      if (!allowedTypes.includes(file.type)) return;
+      if (file.size > 10 * 1024 * 1024) {
+        alert("File size exceeds 10MB. Please choose a smaller file.");
+        return;
+      }
+      const allowedTypes = ["image/jpeg", "image/jpg", "image/png"];
+      if (!allowedTypes.includes(file.type)) {
+        alert("Only JPEG, JPG, and PNG files are allowed.");
+        return;
+      }
     }
     setCheckpointFiles((prev) => {
       const updated = [...prev];
@@ -349,7 +409,6 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
       });
 
       if (isExistingRoute) {
-        // Update existing route
         const updateData = {
           siteId: siteData.id,
           routeId: (routeData as any).id,
@@ -364,7 +423,6 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         };
         await updatePatrolRoute.mutateAsync({ data: updateData, files });
       } else {
-        // Create new route
         const createData = {
           siteId: siteData.id,
           routeName: routeData.name,
@@ -379,7 +437,6 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         await createPatrolRoute.mutateAsync({ data: createData, files });
       }
 
-      // Refetch the data to get updated images
       if (refetch) {
         await refetch();
       }
@@ -389,7 +446,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
       if (error.message?.includes("File") && error.message?.includes("exceeds")) {
         alert("One or more files exceed the maximum size of 10MB. Please compress your images and try again.");
       } else if (error.message?.includes("unsupported type")) {
-        alert("One or more files have unsupported types. Only JPG, JPEG, PNG, and GIF files are allowed.");
+        alert("One or more files have unsupported types. Only JPEG, JPG, and PNG files are allowed.");
       } else if (error.message?.includes("network") || error.message?.includes("fetch")) {
         alert("Network error occurred. Please check your connection and try again.");
       } else {
@@ -510,7 +567,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                   <FileUpload
                     label="Checkpoint Photo"
                     maxSize={2}
-                    acceptedFileTypes="image/*"
+                    acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handlePhotoUpload(file, index)}
                     placeholder="Upload Photo"
                   />
@@ -525,7 +582,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                   <FileUpload
                     label="QR Code Image"
                     maxSize={2}
-                    acceptedFileTypes="image/*"
+                    acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handleQrUpload(file, index)}
                     placeholder="Upload QR Code"
                   />
@@ -536,7 +593,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                   <FileUpload
                     label="QR Location Photo"
                     maxSize={2}
-                    acceptedFileTypes="image/*"
+                    acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handleLocationUpload(file, index)}
                     placeholder="Upload Location Photo"
                   />
@@ -705,7 +762,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                     <LabeledInput
                       label={patrolFrequency ? "No. of Patrol Rounds" : "No. of Patrol Rounds In A Shift"}
                       name={`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.numberOfPatrols`}
-                      placeholder={patrolFrequency ? "Enter number of rounds" : "Auto-calculated"}
+                      placeholder={patrolFrequency ? "Enter number of rounds" : "Enter number of rounds in a shift"}
                       register={register}
                       validation={{
                         required: "Number of patrols is required",
@@ -719,7 +776,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                           ?.message
                       }
                       type="number"
-                      disabled={!patrolFrequency}
+                      disabled={false}
                     />
                   </div>
                 </div>

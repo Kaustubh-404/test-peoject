@@ -39,6 +39,20 @@ export const SiteDetails = () => {
     }
   };
 
+  const handleGeofenceToggle = async () => {
+    try {
+      await siteUpdateMutation.mutateAsync({
+        siteId: siteId!,
+        data: {
+          geoFenceStatus: !site.geoFenceStatus,
+        },
+      });
+      refetch();
+    } catch (error) {
+      console.error("Failed to update geofence status:", error);
+    }
+  };
+
   if (isLoading) return <div>Loading...</div>;
   if (!site) return <div>No site data found.</div>;
 
@@ -131,10 +145,18 @@ export const SiteDetails = () => {
           </div>
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 h-fit">
             <span className="text-[#A3A3A3]">Status</span>
-            <span className="inline-flex gap-2">
-              <ToggleOnIcon className={site.geoFenceStatus ? "text-[#5CC168]" : "text-[#A3A3A3]"} />
+            <button
+              onClick={handleGeofenceToggle}
+              className="inline-flex gap-2 w-fit items-center cursor-pointer hover:opacity-70 transition-opacity"
+              disabled={siteUpdateMutation.isPending}
+            >
+              {site.geoFenceStatus ? (
+                <ToggleOnIcon className="text-[#5CC168]" />
+              ) : (
+                <ToggleOffIcon className="text-[#A3A3A3]" />
+              )}
               {site.geoFenceStatus ? "ON" : "OFF"}
-            </span>
+            </button>
             <span className="text-[#A3A3A3]">Geofence Type</span>
             <span>{site.geofenceType || "-"}</span>
           </div>
@@ -171,6 +193,7 @@ export const SiteDetails = () => {
           setGeofenceModal(false);
           refetch();
         }}
+        siteData={site}
       />
       <PatrolModal
         open={patrolModal}
