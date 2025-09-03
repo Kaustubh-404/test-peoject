@@ -74,14 +74,15 @@ export default function ClientSiteInfoForm() {
         <LabeledInput
           label="Site ID"
           name="id"
+          type="number"
           placeholder="Auto-generated or enter manually"
           required
           register={register}
           validation={{
             required: "Site ID is required",
             pattern: {
-              value: /^[A-Z0-9]{5,15}$/,
-              message: "Site ID must be 5-15 alphanumeric characters",
+              value: /^[0-9]{5,15}$/,
+              message: "Site ID must be 5-15 numeric characters",
             },
           }}
           error={!!errors.id}

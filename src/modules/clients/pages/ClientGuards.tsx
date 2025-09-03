@@ -23,13 +23,14 @@ import {
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useGetClientGuards } from "../apis/hooks/useGetClientGuards";
 import { useGetClientSites } from "../apis/hooks/useGetClientSites";
 import { GuardColumns, type GuardItem } from "../columns/ClientGuardsColumns";
 import { useClientContext } from "../context/ClientContext";
 
 export default function ClientGuards() {
+  const navigate = useNavigate();
   const { clientId } = useParams();
   const { selectedSite, setSelectedSite } = useClientContext();
   const filterButtonRef = useRef<HTMLButtonElement>(null);
@@ -53,6 +54,10 @@ export default function ClientGuards() {
   const { data: guardsResponse, isLoading: isLoadingGuards, error: guardsError } = useGetClientGuards(clientId!);
   const guards = (guardsResponse && (guardsResponse as any).data.guards) || [];
 
+  const areaOfficers = Array.from(new Set(guards.map((guard: any) => guard.areaOfficer).filter(Boolean))) as string[];
+
+  const guardTypes = Array.from(new Set(guards.map((guard: any) => guard.type).filter(Boolean))) as string[];
+
   const transformedGuards: GuardItem[] = guards.map((guard: any) => ({
     id: guard.guardId,
     name: guard.guardName,
@@ -69,10 +74,14 @@ export default function ClientGuards() {
     shiftTime: guard.shiftTime || "",
   }));
 
+  const handleRowClick = (params: any) => {
+    const guardName = params.row.name;
+    navigate(`/guards/${guardName}/performance`);
+  };
+
   const applyFilters = (guards: GuardItem[]) => {
     let result = [...guards];
 
-    // Filter by selected site
     if (selectedSite !== "ALL SITES") {
       const selectedSiteData = sites.find((site: any) => site.id === selectedSite);
       if (selectedSiteData) {
@@ -80,11 +89,18 @@ export default function ClientGuards() {
       }
     }
 
-    if (selectedGuardTypes.length > 0) result = result.filter((guard) => selectedGuardTypes.includes(guard.type));
-    if (selectedClientSites.length > 0)
+    if (selectedGuardTypes.length > 0) {
+      result = result.filter((guard) => selectedGuardTypes.includes(guard.type));
+    }
+
+    if (selectedClientSites.length > 0) {
       result = result.filter((guard) => selectedClientSites.includes(guard.clientSite));
-    if (selectedAreaOfficers.length > 0)
+    }
+
+    if (selectedAreaOfficers.length > 0) {
       result = result.filter((guard) => selectedAreaOfficers.includes(guard.areaOfficer));
+    }
+
     if (selectedTrustScores.length > 0) {
       result = result.filter((guard) => {
         const score = guard.upAndUpAsliTrust;
@@ -104,6 +120,30 @@ export default function ClientGuards() {
         });
       });
     }
+
+    if (shiftStartTime || shiftEndTime) {
+      result = result.filter((guard) => {
+        const guardShiftTime = (guard as any).shiftTime;
+        if (!guardShiftTime) return false;
+
+        const [guardStart, guardEnd] = guardShiftTime.split("-");
+
+        if (shiftStartTime && guardStart) {
+          const filterStartTime = new Date(`1970-01-01T${shiftStartTime}:00`);
+          const guardStartTime = new Date(`1970-01-01T${guardStart}:00`);
+          if (guardStartTime < filterStartTime) return false;
+        }
+
+        if (shiftEndTime && guardEnd) {
+          const filterEndTime = new Date(`1970-01-01T${shiftEndTime}:00`);
+          const guardEndTime = new Date(`1970-01-01T${guardEnd}:00`);
+          if (guardEndTime > filterEndTime) return false;
+        }
+
+        return true;
+      });
+    }
+
     return result;
   };
 
@@ -112,10 +152,9 @@ export default function ClientGuards() {
   const totalPages = Math.ceil(currentPageData.length / pageSize);
   const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1);
 
-  const guardTypes = ["Gun Man", "Security Guard", "Lady Guard", "Personal Security Guard"];
+  const clientSites = Array.from(new Set(sites.map((site: any) => site.siteName).filter(Boolean))) as string[];
+
   const certificationStatuses = ["Pending", "Completed"];
-  const clientSites = ["Nehru Place", "GK 2", "Alaknanda"];
-  const areaOfficers = ["Sachin Sharma", "Keshav Kumar", "Rahul Yadav"];
   const trustScoreRanges = ["4 +", "3 +", "Upto 3", "Upto 2"];
 
   const openFilter = () => setIsFilterOpen(true);
@@ -157,6 +196,7 @@ export default function ClientGuards() {
     setSelectedTrustScores((prev) => (prev.includes(score) ? prev.filter((s) => s !== score) : [...prev, score]));
 
   const filteredClientSites = clientSites.filter((site) => site.toLowerCase().includes(clientSiteSearch.toLowerCase()));
+
   const filteredAreaOfficers = areaOfficers.filter((officer) =>
     officer.toLowerCase().includes(areaOfficerSearch.toLowerCase())
   );
@@ -519,8 +559,9 @@ export default function ClientGuards() {
           rows={currentPageData}
           columns={GuardColumns}
           hideFooter={true}
-          disableRowSelectionOnClick
+          disableRowSelectionOnClick={false}
           hideFooterSelectedRowCount
+          onRowClick={handleRowClick}
           sx={{
             borderRadius: "8px",
             mt: 2,
@@ -539,6 +580,12 @@ export default function ClientGuards() {
             "& .wrapped-header": {
               height: "auto !important",
               minHeight: "70px",
+            },
+            "& .MuiDataGrid-row": {
+              cursor: "pointer",
+              "&:hover": {
+                backgroundColor: "rgba(42, 119, 213, 0.04)",
+              },
             },
           }}
         />

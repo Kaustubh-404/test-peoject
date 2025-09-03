@@ -1,15 +1,20 @@
+import { useGetClientSiteById } from "@modules/clients/apis/hooks/useGetClientSitesById";
+import { guardSelectionsColumns } from "@modules/clients/columns/ClientPostsColumns";
+import {
+  GuardAssignmentModal,
+  PatrollingModal,
+  PostDetailsModal,
+  ShiftDetailsModal,
+} from "@modules/clients/components/modals/SiteUpdateModals";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import ModeEditOutlineOutlinedIcon from "@mui/icons-material/Edit";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import ToggleOnIcon from "@mui/icons-material/ToggleOn";
 import { Box, Button, List, ListItem, ListItemButton, ListItemText } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { useParams } from "react-router-dom";
-
-import { useGetClientSiteById } from "@modules/clients/apis/hooks/useGetClientSitesById";
-import { guardSelectionsColumns } from "@modules/clients/columns/ClientPostsColumns";
-import { GuardAssignmentModal } from "@modules/clients/components/modals/SiteUpdateModals";
 import { Edit } from "lucide-react";
 import { useState } from "react";
+import { useParams } from "react-router-dom";
 
 export default function Posts() {
   const { siteId } = useParams();
@@ -17,6 +22,9 @@ export default function Posts() {
   const [activePostIndex, setActivePostIndex] = useState<number>(0);
   const [activeShiftIndex, setActiveShiftIndex] = useState<number>(0);
   const [guardModalOpen, setGuardModalOpen] = useState(false);
+  const [postDetailsModalOpen, setPostDetailsModalOpen] = useState(false);
+  const [shiftDetailsModalOpen, setShiftDetailsModalOpen] = useState(false);
+  const [patrollingModalOpen, setPatrollingModalOpen] = useState(false);
 
   if (isLoading) return <div>Loading...</div>;
   if (!site) return <div>No site data found.</div>;
@@ -46,7 +54,7 @@ export default function Posts() {
   const uniformType = (activeShift.guardRequirements && activeShift.guardRequirements[0]?.uniformType) || "-";
   const alertnessEnabled = activeShift.alertnessChallenge?.enabled;
   const alertnessCount = activeShift.alertnessChallenge?.totalCount;
-  const patrollingEnabled = activeShift.patrolling?.enabled;
+  const patrollingEnabled = siteData.patrolling; // Use site-level patrolling data
   const patrollingRouteCount = activeShift.patrolling?.routeCount;
 
   const Sidebar = () => (
@@ -105,7 +113,10 @@ export default function Posts() {
           <div className="bg-white rounded-lg p-2">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-lg font-semibold text-gray-800">Post Details</h3>
-              <ModeEditOutlineOutlinedIcon />
+              <ModeEditOutlineOutlinedIcon
+                className="cursor-pointer text-[#2A77D5] hover:text-blue-700"
+                onClick={() => setPostDetailsModalOpen(true)}
+              />
             </div>
             <div className="grid grid-cols-4 gap-2 text-sm">
               <div className="inline-flex gap-2">
@@ -156,7 +167,10 @@ export default function Posts() {
               <div className="mb-2 p-2">
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-semibold text-gray-800">Shift Details</h4>
-                  <ModeEditOutlineOutlinedIcon />
+                  <ModeEditOutlineOutlinedIcon
+                    className="cursor-pointer text-[#2A77D5] hover:text-blue-700"
+                    onClick={() => setShiftDetailsModalOpen(true)}
+                  />
                 </div>
                 <div className="grid grid-cols-4 gap-2 text-sm mb-2">
                   <div className="inline-flex gap-2">
@@ -190,7 +204,11 @@ export default function Posts() {
                       <div className="flex items-center gap-1">
                         <span className="text-gray-600">Status</span>
                         <span className="inline-flex gap-1">
-                          <ToggleOnIcon className={alertnessEnabled ? "text-[#5CC168]" : "text-[#A3A3A3]"} />
+                          {alertnessEnabled ? (
+                            <ToggleOnIcon className="text-[#5CC168]" />
+                          ) : (
+                            <ToggleOffIcon className="text-[#A3A3A3]" />
+                          )}
                           {alertnessEnabled ? "ON" : "OFF"}
                         </span>
                       </div>
@@ -203,7 +221,11 @@ export default function Posts() {
                   <div>
                     <div className="flex items-center justify-between mb-1">
                       <h5 className="font-semibold text-gray-700">Patrolling</h5>
-                      <Edit size={14} className="text-gray-500 cursor-pointer" />
+                      <Edit
+                        size={14}
+                        className="text-gray-500 cursor-pointer hover:text-[#2A77D5]"
+                        onClick={() => setPatrollingModalOpen(true)}
+                      />
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="flex items-center gap-1">
@@ -261,6 +283,39 @@ export default function Posts() {
         sitePosts={posts}
         activePostIndex={activePostIndex}
         activeShiftIndex={activeShiftIndex}
+      />
+      <PostDetailsModal
+        open={postDetailsModalOpen}
+        onClose={() => {
+          setPostDetailsModalOpen(false);
+        }}
+        postData={activePost}
+        onSuccess={() => {
+          setPostDetailsModalOpen(false);
+          refetch && refetch();
+        }}
+      />
+      <ShiftDetailsModal
+        open={shiftDetailsModalOpen}
+        onClose={() => {
+          setShiftDetailsModalOpen(false);
+        }}
+        shiftData={activeShift}
+        onSuccess={() => {
+          setShiftDetailsModalOpen(false);
+          refetch && refetch();
+        }}
+      />
+      <PatrollingModal
+        open={patrollingModalOpen}
+        onClose={() => {
+          setPatrollingModalOpen(false);
+        }}
+        postData={siteData}
+        onSuccess={() => {
+          setPatrollingModalOpen(false);
+          refetch && refetch();
+        }}
       />
     </div>
   );

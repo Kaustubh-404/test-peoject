@@ -14,49 +14,74 @@ interface MetricData {
   color: string;
 }
 
-export default function MetricChart() {
+interface MetricChartProps {
+  metrics?: {
+    absent: number;
+    late: number;
+    uniform: number;
+    alertness: number;
+    geofence: number;
+    patrol: number;
+  };
+  guardCounts?: {
+    absent: number;
+    late: number;
+    uniform: number;
+    alertness: number;
+    geofence: number;
+    patrol: number;
+  };
+  onMetricSelect?: (metricId: string) => void;
+}
+
+export default function MetricChart({ guardCounts, onMetricSelect }: MetricChartProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>("time");
+
+  const handleMetricClick = (metricId: string) => {
+    setSelectedMetric(metricId);
+    onMetricSelect?.(metricId);
+  };
 
   const metrics: MetricData[] = [
     {
       id: "absent",
       label: "ABSENT",
-      value: 16,
+      value: guardCounts?.absent || 0,
       icon: <PersonOffOutlinedIcon sx={{ fontSize: 24 }} />,
       color: "#3B82F6",
     },
     {
       id: "time",
       label: "LATE",
-      value: 12,
+      value: guardCounts?.late || 0,
       icon: <AccessTimeOutlinedIcon sx={{ fontSize: 24 }} />,
       color: "#3B82F6",
     },
     {
       id: "uniform",
       label: "UNIFORM",
-      value: 26,
+      value: guardCounts?.uniform || 0,
       icon: <ShirtIcon />,
       color: "#3B82F6",
     },
     {
       id: "alertness",
       label: "ALERTNESS",
-      value: 32,
+      value: guardCounts?.alertness || 0,
       icon: <img src="/client_icons/alertness.svg" alt="Alertness" className="w-6 h-6" />,
       color: "#3B82F6",
     },
     {
       id: "geofence",
       label: "GEOFENCE",
-      value: 13,
+      value: guardCounts?.geofence || 0,
       icon: <HomeWorkOutlinedIcon sx={{ fontSize: 24 }} />,
       color: "#3B82F6",
     },
     {
       id: "patrol",
       label: "PATROL",
-      value: 19,
+      value: guardCounts?.patrol || 0,
       icon: <DirectionsRunOutlinedIcon sx={{ fontSize: 24 }} />,
       color: "#3B82F6",
     },
@@ -104,7 +129,7 @@ export default function MetricChart() {
               </div>
             </div>
 
-            <Button variant="contained" sx={getButtonStyles(metric.id)} onClick={() => setSelectedMetric(metric.id)}>
+            <Button variant="contained" sx={getButtonStyles(metric.id)} onClick={() => handleMetricClick(metric.id)}>
               <div className={selectedMetric === metric.id ? "text-white" : "text-[#2A77D5]"}>{metric.icon}</div>
               <span className="text-xs font-medium mt-1">{metric.label}</span>
             </Button>

@@ -44,6 +44,7 @@ export default function Clients() {
   const [currentPage, setCurrentPage] = useState(0);
   const [filteredRows, setFilteredRows] = useState<ClientListItem[]>([]);
   const [clientRows, setClientRows] = useState<ClientListItem[]>([]);
+  const [hasDraft, setHasDraft] = useState(false);
 
   useEffect(() => {
     if (clientsResponse?.data) {
@@ -80,6 +81,21 @@ export default function Clients() {
   useEffect(() => {
     setCurrentPage(0);
   }, [pageSize, showFavouritesOnly, guardCountRange, sitesCountRange]);
+
+  useEffect(() => {
+    const checkForDraft = () => {
+      const clientDraft = localStorage.getItem("clientDraft");
+      setHasDraft(!!clientDraft);
+    };
+
+    checkForDraft();
+
+    // Check for draft changes when component gains focus
+    const handleFocus = () => checkForDraft();
+    window.addEventListener("focus", handleFocus);
+
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   const applyFilters = () => {
     let result = [...clientRows];
@@ -157,6 +173,12 @@ export default function Clients() {
   const closeFilter = () => setIsFilterOpen(false);
   const applyAndClose = () => closeFilter();
 
+  const handleDraftClick = () => {
+    if (hasDraft) {
+      navigate("/add-client");
+    }
+  };
+
   if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -229,7 +251,12 @@ export default function Clients() {
               Add New Client
             </Typography>
           </Button>
-          <Button variant="contained">
+          <Button
+            variant="contained"
+            onClick={handleDraftClick}
+            disabled={!hasDraft}
+            color={hasDraft ? "primary" : "inherit"}
+          >
             <DraftsOutlinedIcon
               sx={{
                 typography: {
@@ -244,7 +271,7 @@ export default function Clients() {
                 },
               }}
             >
-              Drafts
+              Drafts {hasDraft ? "(1)" : ""}
             </Typography>
           </Button>
         </div>

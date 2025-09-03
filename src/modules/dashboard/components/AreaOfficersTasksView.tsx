@@ -41,25 +41,55 @@ export default function AreaOfficersTasksView({
 
   const now = new Date();
 
+  // Type guard function to check if an object is a valid Task
+  const isValidTask = (task: any): task is Task => {
+    return (
+      task &&
+      typeof task === "object" &&
+      typeof task.id === "string" &&
+      typeof task.areaOfficerId === "string" &&
+      task.client &&
+      typeof task.client === "object" &&
+      typeof task.client.clientName === "string" &&
+      task.site &&
+      typeof task.site === "object" &&
+      typeof task.site.siteName === "string" &&
+      "taskStatus" in task &&
+      "deadline" in task
+    );
+  };
+
   const overdueTasks = useMemo(
     () =>
-      tasks.filter(
-        (task: Task) =>
-          (task.taskStatus === "PENDING" || task.taskStatus === "INPROGRESS") && new Date(task.deadline) < now
-      ),
+      tasks.filter((task: any): task is Task => {
+        return (
+          isValidTask(task) &&
+          (task.taskStatus === "PENDING" || task.taskStatus === "INPROGRESS") &&
+          new Date(task.deadline) < now
+        );
+      }),
     [tasks, now]
   );
 
   const pendingTasks = useMemo(
     () =>
-      tasks.filter(
-        (task: Task) =>
-          (task.taskStatus === "PENDING" || task.taskStatus === "INPROGRESS") && new Date(task.deadline) >= now
-      ),
+      tasks.filter((task: any): task is Task => {
+        return (
+          isValidTask(task) &&
+          (task.taskStatus === "PENDING" || task.taskStatus === "INPROGRESS") &&
+          new Date(task.deadline) >= now
+        );
+      }),
     [tasks, now]
   );
 
-  const doneTasks = useMemo(() => tasks.filter((task: Task) => task.taskStatus === "COMPLETED"), [tasks]);
+  const doneTasks = useMemo(
+    () =>
+      tasks.filter((task: any): task is Task => {
+        return isValidTask(task) && task.taskStatus === "COMPLETED";
+      }),
+    [tasks]
+  );
 
   const overdueCount = overdueTasks.length;
   const pendingCount = pendingTasks.length;
@@ -221,31 +251,38 @@ export default function AreaOfficersTasksView({
           {currentData.length === 0 ? (
             <div className="text-center py-8 text-gray-500">No {activeTab} tasks found</div>
           ) : (
-            currentData.map((task: Task, index: number) => (
-              <div
-                key={`${task.id}-${index}`}
-                className="border border-gray-200 bg-white rounded-lg shadow-sm overflow-hidden"
-              >
-                <div className="grid grid-cols-6 gap-4 px-4 py-3 items-center">
-                  <div className="text-gray-800 font-medium">{task.id.slice(-6)}</div>
-                  <div className="text-gray-800 font-medium">{task.areaOfficerId}</div>
-                  <div className="text-gray-800 font-medium">{task.client.clientName}</div>
-                  <div className="text-gray-800 font-medium">{task.site.siteName}</div>
-                  <div className="text-gray-800 font-medium">
-                    <div>{new Date(task.deadline).toLocaleDateString("en-GB")}</div>
-                    <div className="text-sm text-gray-600">
-                      {new Date(task.deadline).toLocaleTimeString("en-US", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: true,
-                      })}
+            currentData.map((task, index) => {
+              if (isValidTask(task)) {
+                return (
+                  <div
+                    key={`task-${index}`}
+                    className="border border-gray-200 bg-white rounded-lg shadow-sm overflow-hidden"
+                  >
+                    <div className="grid grid-cols-6 gap-4 px-4 py-3 items-center">
+                      <div className="text-gray-800 font-medium">{task.id.slice(-6)}</div>
+                      <div className="text-gray-800 font-medium">{task.areaOfficerId}</div>
+                      <div className="text-gray-800 font-medium">{task.client.clientName}</div>
+                      <div className="text-gray-800 font-medium">{task.site.siteName}</div>
+                      <div className="text-gray-800 font-medium">
+                        <div>{new Date(task.deadline).toLocaleDateString("en-GB")}</div>
+                        <div className="text-sm text-gray-600">
+                          {new Date(task.deadline).toLocaleTimeString("en-US", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                          })}
+                        </div>
+                      </div>
+                      <div className="text-gray-800 font-medium">{task.areaOfficerId}</div>
+                    </div>
+                    <div className="bg-blue-50 px-4 py-3 border-t border-gray-200">
+                      {getActionIcons(task, activeTab)}
                     </div>
                   </div>
-                  <div className="text-gray-800 font-medium">{task.areaOfficerId}</div>
-                </div>
-                <div className="bg-blue-50 px-4 py-3 border-t border-gray-200">{getActionIcons(task, activeTab)}</div>
-              </div>
-            ))
+                );
+              }
+              return null;
+            })
           )}
         </div>
       </div>

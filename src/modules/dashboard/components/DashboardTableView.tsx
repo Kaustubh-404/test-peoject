@@ -1,7 +1,8 @@
 import { Search, StarBorder, Tune } from "@mui/icons-material";
 import { CircularProgress, InputAdornment, TextField, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   useAreaOfficers,
   useDashboardOverview,
@@ -25,13 +26,84 @@ interface DashboardTableViewProps {
   pageSize: number;
 }
 
+const StarredHeader = ({
+  showStarredOnly,
+  setShowStarredOnly,
+  searchQuery,
+  setSearchQuery,
+}: {
+  showStarredOnly: boolean;
+  setShowStarredOnly: (value: boolean) => void;
+  searchQuery: string;
+  setSearchQuery: (value: string) => void;
+}) => (
+  <div className="flex justify-between items-center mb-4">
+    <div className="flex gap-2">
+      <div
+        className={`inline-flex items-center gap-1 cursor-pointer pb-1 text-[#2A77D5] ${
+          !showStarredOnly ? "border-b-2 border-[#2A77D5] font-semibold" : ""
+        }`}
+        onClick={() => setShowStarredOnly(false)}
+      >
+        <Tune sx={{ mr: 0.5, fontSize: 20 }} />
+        ALL
+      </div>
+      <div
+        className={`inline-flex items-center gap-1 cursor-pointer pb-1 text-[#2A77D5] ${
+          showStarredOnly ? "border-b-2 border-[#2A77D5] font-semibold" : ""
+        }`}
+        onClick={() => setShowStarredOnly(true)}
+      >
+        <StarBorder sx={{ mr: 0.5, fontSize: 20 }} />
+        STARRED
+      </div>
+    </div>
+    <TextField
+      size="small"
+      placeholder="Search List"
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      InputProps={{
+        endAdornment: (
+          <InputAdornment position="end">
+            <Search sx={{ color: "#9e9e9e", fontSize: 18 }} />
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        width: 180,
+        "& .MuiOutlinedInput-root": {
+          borderRadius: "6px",
+          height: "32px",
+          fontSize: "13px",
+          "& fieldset": {
+            borderColor: "#e5e5e5",
+          },
+          "&:hover fieldset": {
+            borderColor: "#d1d5db",
+          },
+          "&.Mui-focused fieldset": {
+            borderColor: "#9ca3af",
+            borderWidth: "1px",
+          },
+        },
+        "& .MuiOutlinedInput-input": {
+          padding: "6px 12px",
+          "&::placeholder": {
+            color: "#9ca3af",
+            fontSize: "13px",
+          },
+        },
+      }}
+    />
+  </div>
+);
+
 export default function DashboardTableView({ selectedTableView }: DashboardTableViewProps) {
+  const navigate = useNavigate();
   const [showStarredOnly, setShowStarredOnly] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Check if current view should show starred header
   const shouldShowStarredHeader = ["overview", "attendance", "guards", "shifts"].includes(selectedTableView);
-  // Fetch dashboard overview data
   const {
     data: dashboardData,
     isLoading: isDashboardLoading,
@@ -43,8 +115,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     incidentStatus: "ALL",
   });
-
-  // Fetch liveliness alerts data
   const {
     data: livelinessData,
     isLoading: isLivelinessLoading,
@@ -56,8 +126,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     incidentStatus: "ALL",
   });
-
-  // Fetch late uniform summary data for guards view
   const {
     data: lateUniformData,
     isLoading: isLateUniformLoading,
@@ -69,8 +137,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     incidentStatus: "ALL",
   });
-
-  // Fetch shift performance issues data for shifts view
   const {
     data: shiftPerformanceData,
     isLoading: isShiftPerformanceLoading,
@@ -82,8 +148,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     incidentStatus: "ALL",
   });
-
-  // Fetch area officers data for area officers view
   const {
     data: areaOfficersData,
     isLoading: isAreaOfficersLoading,
@@ -95,8 +159,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     incidentStatus: "ALL",
   });
-
-  // Fetch incident reports data for incidents view
   const {
     data: incidentReportsData,
     isLoading: isIncidentReportsLoading,
@@ -108,135 +170,73 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
     sortOrder: "desc",
     userTypeFilter: "GUARD",
   });
-
-  // Extract overview data from API response
   const overviewData = dashboardData?.data?.data?.[0]?.overviewData || [];
-
-  // Extract liveliness alerts data from API response
   const livelinessAlerts = livelinessData?.data?.data || [];
-
-  // Extract late uniform summary data from API response
   const lateUniformSummary = lateUniformData?.data?.data?.[0]?.overviewData || [];
-
-  // Extract shift performance data from API response
   const shiftPerformanceOverview = shiftPerformanceData?.data?.data?.[0]?.overviewData || [];
-
-  // Extract area officers data from API response
   const areaOfficersOverview = areaOfficersData?.data?.data?.[0]?.overviewData || [];
-
-  // Transform overview data to include id and starred status for DataGrid
   const transformedOverviewData = overviewData.map((item: any, index: number) => ({
     id: index + 1,
     ...item,
-    starred: false, // Default to false, could be managed via API later
-    patrol: item.patrol || 0, // Default patrol to 0 if not provided
+    starred: false,
+    patrol: item.patrol || 0,
   }));
-
-  // Transform liveliness data to include id for DataGrid
   const transformedLivelinessData = livelinessAlerts.map((item: any, index: number) => ({
     id: index + 1,
     ...item,
   }));
-
-  // Transform late uniform summary data for guards view
   const transformedGuardsData = lateUniformSummary.map((item: any, index: number) => ({
     id: index + 1,
+    clientId: item.clientId,
     clientName: item.clientName,
     late: item.lateCount,
     uniform: item.uniform,
     starred: false,
   }));
-
-  // Transform shift performance data for shifts view
   const transformedShiftsData = shiftPerformanceOverview.map((item: any, index: number) => ({
     id: index + 1,
+    clientId: item.clientId,
     clientName: item.clientName,
     alertness: item.alertness,
     geofence: item.geofence,
-    patrol: 0, // Not available in this API, set to 0
+    patrol: item.patrol || 0,
     starred: false,
   }));
-
-  // Transform area officers data for area officers view
   const transformedAreaOfficersData = areaOfficersOverview.map((item: any, index: number) => ({
     id: index + 1,
+    clientId: item.clientId,
     name: item.clientName,
-    assignedArea: "N/A", // Not available in API response
-    absent: 0, // Not available in API response
+    assignedArea: "N/A",
+    absent: 0,
     late: item.lateCount || 0,
     uniform: item.uniform || 0,
   }));
-
-  useEffect(() => {
-    console.log("Transformed Overview Data:", transformedAreaOfficersData);
-  });
-  // Starred Header Component
-  const StarredHeader = () => (
-    <div className="flex justify-between items-center mb-4">
-      <div className="flex gap-2">
-        <div
-          className={`inline-flex items-center gap-1 cursor-pointer pb-1 text-[#2A77D5] ${
-            !showStarredOnly ? "border-b-2 border-[#2A77D5] font-semibold" : ""
-          }`}
-          onClick={() => setShowStarredOnly(false)}
-        >
-          <Tune sx={{ mr: 0.5, fontSize: 20 }} />
-          ALL
-        </div>
-        <div
-          className={`inline-flex items-center gap-1 cursor-pointer pb-1 text-[#2A77D5] ${
-            showStarredOnly ? "border-b-2 border-[#2A77D5] font-semibold" : ""
-          }`}
-          onClick={() => setShowStarredOnly(true)}
-        >
-          <StarBorder sx={{ mr: 0.5, fontSize: 20 }} />
-          STARRED
-        </div>
-      </div>
-
-      <TextField
-        size="small"
-        placeholder="Search List"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        InputProps={{
-          endAdornment: (
-            <InputAdornment position="end">
-              <Search sx={{ color: "#9e9e9e", fontSize: 18 }} />
-            </InputAdornment>
-          ),
-        }}
-        sx={{
-          width: 180,
-          "& .MuiOutlinedInput-root": {
-            borderRadius: "6px",
-            height: "32px",
-            fontSize: "13px",
-            "& fieldset": {
-              borderColor: "#e5e5e5",
-            },
-            "&:hover fieldset": {
-              borderColor: "#d1d5db",
-            },
-            "&.Mui-focused fieldset": {
-              borderColor: "#9ca3af",
-              borderWidth: "1px",
-            },
-          },
-          "& .MuiOutlinedInput-input": {
-            padding: "6px 12px",
-            "&::placeholder": {
-              color: "#9ca3af",
-              fontSize: "13px",
-            },
-          },
-        }}
-      />
-    </div>
-  );
-
+  const applySearchFilter = (data: any[], searchFields: string[]) => {
+    if (!searchQuery.trim()) return data;
+    const query = searchQuery.toLowerCase();
+    return data.filter((item) =>
+      searchFields.some((field) => {
+        const value = item[field];
+        if (value === null || value === undefined) return false;
+        return String(value).toLowerCase().includes(query);
+      })
+    );
+  };
+  const applyStarredFilter = (data: any[]) => {
+    if (!showStarredOnly) return data;
+    return data.filter((item) => item.starred === true);
+  };
+  const getFilteredData = (data: any[], searchFields: string[]) => {
+    let filtered = applySearchFilter(data, searchFields);
+    filtered = applyStarredFilter(filtered);
+    return filtered;
+  };
+  const handleRowClick = (clientId: string) => {
+    if (selectedTableView !== "incidents" && selectedTableView !== "area-officers-tasks") {
+      navigate(`/clients/${clientId}/performance/guards-defaults`);
+    }
+  };
   if (selectedTableView === "overview") {
-    // Show loading state
     if (isDashboardLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -245,8 +245,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (dashboardError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -254,23 +252,28 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full">
-        {shouldShowStarredHeader && <StarredHeader />}
+        {shouldShowStarredHeader && (
+          <StarredHeader
+            showStarredOnly={showStarredOnly}
+            setShowStarredOnly={setShowStarredOnly}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        )}
         <DataGrid
-          rows={transformedOverviewData}
+          rows={getFilteredData(transformedOverviewData, ["clientName", "alertness", "geofence", "patrol"])}
           columns={columns}
           hideFooter
           disableRowSelectionOnClick
           sx={datagridStyle}
+          onRowClick={(params) => handleRowClick(params.row.clientId)}
         />
       </div>
     );
   }
-
   if (selectedTableView === "attendance") {
-    // Show loading state
     if (isDashboardLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -279,8 +282,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (dashboardError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -288,23 +289,28 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full">
-        {shouldShowStarredHeader && <StarredHeader />}
+        {shouldShowStarredHeader && (
+          <StarredHeader
+            showStarredOnly={showStarredOnly}
+            setShowStarredOnly={setShowStarredOnly}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        )}
         <DataGrid
-          rows={transformedOverviewData}
+          rows={getFilteredData(transformedOverviewData, ["clientName", "alertness", "geofence", "patrol"])}
           columns={columns}
           hideFooter
           disableRowSelectionOnClick
           sx={datagridStyle}
+          onRowClick={(params) => handleRowClick(params.row.clientId)}
         />
       </div>
     );
   }
-
   if (selectedTableView === "liveiness") {
-    // Show loading state
     if (isLivelinessLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -313,8 +319,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (livelinessError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -322,11 +326,10 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full">
         <DataGrid
-          rows={transformedLivelinessData}
+          rows={applySearchFilter(transformedLivelinessData, ["guardName", "clientName", "siteName", "alertType"])}
           columns={livelinessColumns}
           hideFooter
           disableRowSelectionOnClick
@@ -337,9 +340,7 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
       </div>
     );
   }
-
   if (selectedTableView === "guards") {
-    // Show loading state
     if (isLateUniformLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -348,8 +349,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (lateUniformError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -357,23 +356,28 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full bg-white p-4">
-        {shouldShowStarredHeader && <StarredHeader />}
+        {shouldShowStarredHeader && (
+          <StarredHeader
+            showStarredOnly={showStarredOnly}
+            setShowStarredOnly={setShowStarredOnly}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        )}
         <DataGrid
-          rows={transformedGuardsData}
+          rows={getFilteredData(transformedGuardsData, ["clientName", "late", "uniform"])}
           columns={guardsColumns}
           hideFooter
           disableRowSelectionOnClick
           sx={guardsDatagridStyle}
+          onRowClick={(params) => handleRowClick(params.row.clientId)}
         />
       </div>
     );
   }
-
   if (selectedTableView === "shifts") {
-    // Show loading state
     if (isShiftPerformanceLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -382,8 +386,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (shiftPerformanceError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -391,23 +393,28 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full bg-white p-4">
-        {shouldShowStarredHeader && <StarredHeader />}
+        {shouldShowStarredHeader && (
+          <StarredHeader
+            showStarredOnly={showStarredOnly}
+            setShowStarredOnly={setShowStarredOnly}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+          />
+        )}
         <DataGrid
-          rows={transformedShiftsData}
+          rows={getFilteredData(transformedShiftsData, ["clientName", "alertness", "geofence", "patrol"])}
           columns={shiftsColumns}
           hideFooter
           disableRowSelectionOnClick
           sx={shiftsDatagridStyle}
+          onRowClick={(params) => handleRowClick(params.row.clientId)}
         />
       </div>
     );
   }
-
   if (selectedTableView === "area-officers") {
-    // Show loading state
     if (isAreaOfficersLoading) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -416,8 +423,6 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
-    // Show error state
     if (areaOfficersError) {
       return (
         <div className="w-full h-full flex items-center justify-center">
@@ -425,20 +430,19 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
         </div>
       );
     }
-
     return (
       <div className="w-full h-full">
         <DataGrid
-          rows={transformedAreaOfficersData}
+          rows={applySearchFilter(transformedAreaOfficersData, ["name", "assignedArea", "late", "uniform"])}
           columns={areaOfficersColumns}
           hideFooter
           disableRowSelectionOnClick
           sx={areaOfficersDatagridStyle}
+          onRowClick={(params) => handleRowClick(params.row.clientId)}
         />
       </div>
     );
   }
-
   if (selectedTableView === "incidents") {
     return (
       <IncidentReportsView
@@ -448,12 +452,9 @@ export default function DashboardTableView({ selectedTableView }: DashboardTable
       />
     );
   }
-
   if (selectedTableView === "area-officers-tasks") {
     return <AreaOfficersTasksView />;
   }
-
-  // Return placeholder for other views
   return (
     <div className="w-full h-full flex items-center justify-center">
       <div className="text-gray-500">

@@ -89,6 +89,7 @@ export interface ShiftPerformanceData {
   clientName: string;
   alertness: number;
   geofence: number;
+  patrol: number;
 }
 
 export interface ShiftPerformanceResponse {
@@ -97,6 +98,7 @@ export interface ShiftPerformanceResponse {
     data: Array<{
       totalAlertnessCount: number;
       totalGeofenceCount: number;
+      totalPatrolCount: number;
       overviewData: ShiftPerformanceData[];
     }>;
     pagination: {
@@ -114,6 +116,7 @@ export interface ShiftPerformanceResponse {
 // Area officers API response types
 export interface AreaOfficersData {
   clientName: string;
+  absentCount: number;
   lateCount: number;
   uniform: number;
 }
@@ -171,11 +174,42 @@ export interface IncidentReportsResponse {
   timestamp: string;
 }
 
+// Task-related types for Area Officer Tasks
+export interface TaskData {
+  taskId: string;
+  taskTitle: string;
+  taskDescription: string;
+  taskStatus: "PENDING" | "INPROGRESS" | "COMPLETED" | "OVERDUE";
+  deadline: string;
+  clientName: string;
+  siteName: string;
+  areaOfficerName: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TasksResponse {
+  success: boolean;
+  data: {
+    tasks: TaskData[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  };
+  timestamp: string;
+}
+
 // Get dashboard overview API service
 export const getDashboardOverview = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -184,6 +218,7 @@ export const getDashboardOverview = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<DashboardOverviewResponse> => {
   const { get } = useApi;
 
@@ -205,6 +240,7 @@ export const getLivelinessAlerts = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -213,6 +249,7 @@ export const getLivelinessAlerts = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<LivelinessAlertsResponse> => {
   const { get } = useApi;
 
@@ -234,6 +271,7 @@ export const getLateUniformSummary = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -242,6 +280,7 @@ export const getLateUniformSummary = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<LateUniformSummaryResponse> => {
   const { get } = useApi;
 
@@ -263,6 +302,7 @@ export const getShiftPerformanceIssues = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -271,6 +311,7 @@ export const getShiftPerformanceIssues = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<ShiftPerformanceResponse> => {
   const { get } = useApi;
 
@@ -292,6 +333,7 @@ export const getAreaOfficers = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -300,6 +342,7 @@ export const getAreaOfficers = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<AreaOfficersResponse> => {
   const { get } = useApi;
 
@@ -321,6 +364,7 @@ export const getIncidentReports = async (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -329,6 +373,7 @@ export const getIncidentReports = async (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }): Promise<IncidentReportsResponse> => {
   const { get } = useApi;
 
@@ -343,4 +388,30 @@ export const getIncidentReports = async (params: {
 
   const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
   return get(`/dashboard/incident-reports${queryString}`);
+};
+
+// Get tasks API service for area officer tasks
+export const getTasks = async (params: {
+  clientId?: string;
+  siteId?: string;
+  areaOfficerId?: string;
+  status?: string;
+  deadlineFrom?: string;
+  deadlineTo?: string;
+  page?: number;
+  limit?: number;
+}): Promise<TasksResponse> => {
+  const { get } = useApi;
+
+  const searchParams = new URLSearchParams();
+
+  // Add all parameters to the query string
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      searchParams.append(key, value.toString());
+    }
+  });
+
+  const queryString = searchParams.toString() ? `?${searchParams.toString()}` : "";
+  return get(`/tasks${queryString}`);
 };

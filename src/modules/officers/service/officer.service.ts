@@ -405,7 +405,6 @@ export const officerService = {
     }
   },
 
-  // Validate form data before submission
   validateFormData: (formData: OfficerFormData): string[] => {
     const errors: string[] = [];
 
@@ -438,9 +437,6 @@ export const officerService = {
     }
     if (!formData.contactDetails.emergencyContact.lastName?.trim()) {
       errors.push("Emergency contact last name is required");
-    }
-    if (!formData.contactDetails.emergencyContact.relationship?.trim()) {
-      errors.push("Emergency contact relationship is required");
     }
     if (!formData.contactDetails.emergencyContact.contactNumber?.trim()) {
       errors.push("Emergency contact number is required");
@@ -519,14 +515,14 @@ export const officerService = {
       errors.push("Referral contact number must be a valid 10-digit Indian number starting with 6-9");
     }
 
-    // Document validation - Check mandatory documents (matching Guards)
+    // Document validation - UPDATED: Check for at least one mandatory document selected
     const selectedDocuments = formData.documentVerification.documents.filter((doc) => doc.isSelected);
-    const mandatoryDocTypes = ["aadhaar", "birth", "education", "pan"]; // PAN is mandatory
+    const mandatoryDocTypes = ["aadhaar", "birth", "education", "pan"];
     const selectedMandatoryDocs = selectedDocuments.filter((doc) => mandatoryDocTypes.includes(doc.type));
 
-    if (selectedMandatoryDocs.length < mandatoryDocTypes.length) {
+    if (selectedMandatoryDocs.length === 0) {
       errors.push(
-        "Please select all mandatory documents: Aadhaar Card, Birth Certificate, Education Certificate, and PAN Card"
+        "Please select at least one mandatory document: Aadhaar Card, Birth Certificate, Education Certificate, or PAN Card"
       );
     }
 
@@ -543,13 +539,9 @@ export const officerService = {
     if (!formData.employmentDetails.areaManager?.trim()) {
       errors.push("Area manager is required");
     }
-    // Referral fields are optional - no validation needed
-    // Status is set to ACTIVE by default - no validation needed
 
-    // 🔥 CRITICAL: UserType validation - Officers MUST be AREA_OFFICER
-    // Note: userType is not part of form data, it's hardcoded in service
-    // This validation ensures data integrity at service level
-    console.log("🔍 Officer form validation: UserType will be enforced as AREA_OFFICER in service layer");
+    // UserType validation - Officers MUST be AREA_OFFICER
+    console.log("Officer form validation: UserType will be enforced as AREA_OFFICER in service layer");
 
     return errors;
   },

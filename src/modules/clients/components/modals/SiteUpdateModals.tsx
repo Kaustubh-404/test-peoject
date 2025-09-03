@@ -3,12 +3,29 @@ import LabeledInput from "@components/LabeledInput";
 import { useClientSiteUpdate } from "@modules/clients/apis/hooks/useClientSiteUpdate";
 import { useGetAreaOfficers, useGetGuards } from "@modules/clients/apis/hooks/useGuards";
 import { usePatchGuardSelection } from "@modules/clients/apis/hooks/usePatchGuardSelection";
-import { Alert, Box, Button, CircularProgress, Divider, Modal } from "@mui/material";
+import { usePostUpdate } from "@modules/clients/apis/hooks/usePostUpdate";
+import { useShiftUpdate } from "@modules/clients/apis/hooks/useShiftUpdate";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn";
+import {
+  Alert,
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Divider,
+  FormControl,
+  InputLabel,
+  MenuItem,
+  Modal,
+  OutlinedInput,
+  Select,
+} from "@mui/material";
 import type { GridColDef } from "@mui/x-data-grid";
 import { DataGrid } from "@mui/x-data-grid";
 import { BriefcaseBusiness, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { useParams } from "react-router-dom";
 import {
   availableGuardsColumns,
@@ -766,6 +783,502 @@ export const GuardAssignmentModal = ({
               </form>
             </div>
           </div>
+        </div>
+      </Box>
+    </Modal>
+  );
+};
+
+// Post Details Modal
+export const PostDetailsModal = ({ open, onClose, postData, onSuccess }: any) => {
+  const { mutate: updatePost, isPending, error, isSuccess } = usePostUpdate();
+  // const { data: areaOfficersData } = useGetAreaOfficers({ page: 1, limit: 100 });
+  // const areaOfficerOptions = (areaOfficersData?.data?.guards || []).map((officer: any) => ({
+  //   value: officer.guardId,
+  //   label: `${officer.firstName} ${officer.middleName || ""} ${officer.lastName}`.trim(),
+  //   disabled: officer.status !== "ACTIVE",
+  // }));
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      postName: postData?.postName || "",
+      geofenceType: postData?.geofenceType || "CIRCLE",
+      // areaOfficerId: postData?.areaOfficerId || "",
+    },
+  });
+
+  useEffect(() => {
+    if (open && postData) {
+      reset({
+        postName: postData.postName || "",
+        geofenceType: postData.geofenceType || "CIRCLE",
+        // areaOfficerId: postData.areaOfficerId || "",
+      });
+    }
+  }, [open, postData, reset]);
+
+  useEffect(() => {
+    if (isSuccess && onSuccess) {
+      onSuccess();
+    }
+  }, [isSuccess, onSuccess]);
+
+  const onSubmit = (data: any) => {
+    if (!postData?.id) return;
+    // Remove areaOfficerId from the data being sent
+    const { areaOfficerId, ...dataToSend } = data;
+    updatePost({ postId: postData.id, data: dataToSend });
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose}>
+      <Box sx={style}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-[#2A77D5]">Update Post Details</h2>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-full" type="button">
+            <X className="w-6 h-6 text-[#2A77D5]" />
+          </button>
+        </div>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to update post details. Please try again.
+          </Alert>
+        )}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="flex flex-col gap-2">
+            <Divider />
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <LabeledInput
+                label="Post Name"
+                name="postName"
+                required
+                register={register}
+                error={!!errors.postName}
+                helperText={typeof errors.postName?.message === "string" ? errors.postName?.message : undefined}
+              />
+              <LabeledDropdown
+                label="Geofence Type"
+                name="geofenceType"
+                placeholder="Select Geofence Type"
+                required
+                register={register}
+                validation={{ required: "Geofence type is required" }}
+                options={[
+                  { value: "CIRCLE", label: "Circular Geofence" },
+                  { value: "POLYGON", label: "Polygon Geofence" },
+                ]}
+                error={!!errors.geofenceType}
+                helperText={
+                  typeof errors.geofenceType?.message === "string"
+                    ? errors.geofenceType?.message
+                    : "Select the geofence shape for this post"
+                }
+                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
+                  setValue("geofenceType", e.target.value as string);
+                }}
+              />
+            </div>
+            {/* Commented out area officer assignment */}
+            {/* <div className="grid grid-cols-1 gap-4 mt-2">
+              <LabeledDropdown
+                label="Assign Area Officer"
+                name="areaOfficerId"
+                placeholder="Select Area Officer"
+                register={register}
+                options={areaOfficerOptions}
+                error={!!errors.areaOfficerId}
+                helperText={
+                  typeof errors.areaOfficerId?.message === "string"
+                    ? errors.areaOfficerId?.message
+                    : "Select an area officer for this post (optional)"
+                }
+                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
+                  setValue("areaOfficerId", e.target.value as string);
+                }}
+              />
+            </div> */}
+          </div>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 3 }}>
+            <Button variant="outlined" onClick={handleClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isPending}
+              startIcon={isPending ? <CircularProgress size={20} /> : null}
+            >
+              {isPending ? "Updating..." : "Save Changes"}
+            </Button>
+          </Box>
+        </form>
+      </Box>
+    </Modal>
+  );
+};
+
+// Shift Details Modal
+export const ShiftDetailsModal = ({ open, onClose, shiftData, onSuccess }: any) => {
+  const { mutate: updateShift, isPending, error, isSuccess } = useShiftUpdate();
+  // const { data: areaOfficersData } = useGetAreaOfficers({ page: 1, limit: 100 });
+  // const areaOfficerOptions = (areaOfficersData?.data?.guards || []).map((officer: any) => ({
+  //   value: officer.guardId,
+  //   label: `${officer.firstName} ${officer.middleName || ""} ${officer.lastName}`.trim(),
+  //   disabled: officer.status !== "ACTIVE",
+  // }));
+
+  const daysOfWeekOptions = [
+    { value: "MONDAY", label: "Monday" },
+    { value: "TUESDAY", label: "Tuesday" },
+    { value: "WEDNESDAY", label: "Wednesday" },
+    { value: "THURSDAY", label: "Thursday" },
+    { value: "FRIDAY", label: "Friday" },
+    { value: "SATURDAY", label: "Saturday" },
+    { value: "SUNDAY", label: "Sunday" },
+  ];
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    control,
+    formState: { errors },
+  } = useForm({
+    defaultValues: {
+      daysOfWeek: shiftData?.daysOfWeek || [],
+      dutyStartTime: shiftData?.dutyStartTime || "",
+      dutyEndTime: shiftData?.dutyEndTime || "",
+      checkInTime: shiftData?.checkInTime || "",
+      latenessFrom: shiftData?.latenessFrom || "",
+      latenessTo: shiftData?.latenessTo || "",
+      includePublicHolidays: shiftData?.includePublicHolidays || false,
+      // areaOfficerId: shiftData?.areaOfficerId || "",
+    },
+  });
+
+  useEffect(() => {
+    if (open && shiftData) {
+      reset({
+        daysOfWeek: shiftData.daysOfWeek || [],
+        dutyStartTime: shiftData.dutyStartTime || "",
+        dutyEndTime: shiftData.dutyEndTime || "",
+        checkInTime: shiftData.checkInTime || "",
+        latenessFrom: shiftData.latenessFrom || "",
+        latenessTo: shiftData.latenessTo || "",
+        includePublicHolidays: shiftData.includePublicHolidays || false,
+        // areaOfficerId: shiftData.areaOfficerId || "",
+      });
+    }
+  }, [open, shiftData, reset]);
+
+  useEffect(() => {
+    if (isSuccess && onSuccess) {
+      onSuccess();
+    }
+  }, [isSuccess, onSuccess]);
+
+  const selectedDays = watch("daysOfWeek");
+
+  const onSubmit = (data: any) => {
+    if (!shiftData?.id) return;
+    // Remove areaOfficerId from the data being sent
+    const { areaOfficerId, ...dataToSend } = data;
+    updateShift({ shiftId: shiftData.id, data: dataToSend });
+  };
+
+  const handleClose = () => {
+    reset();
+    onClose();
+  };
+
+  const handleDayChange = (event: any) => {
+    const {
+      target: { value },
+    } = event;
+    setValue("daysOfWeek", typeof value === "string" ? value.split(",") : value);
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose}>
+      <Box sx={style}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-[#2A77D5]">Update Shift Details</h2>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-full" type="button">
+            <X className="w-6 h-6 text-[#2A77D5]" />
+          </button>
+        </div>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to update shift details. Please try again.
+          </Alert>
+        )}
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="flex flex-col gap-2">
+            <Divider />
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <Controller
+                name="daysOfWeek"
+                control={control}
+                render={() => (
+                  <FormControl fullWidth>
+                    <InputLabel id="days-of-week-label">Days of Week</InputLabel>
+                    <Select
+                      labelId="days-of-week-label"
+                      multiple
+                      value={selectedDays}
+                      onChange={handleDayChange}
+                      input={<OutlinedInput label="Days of Week" />}
+                      renderValue={(selected) => (
+                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                          {(selected as string[]).map((value) => (
+                            <Chip
+                              key={value}
+                              label={daysOfWeekOptions.find((d) => d.value === value)?.label || value}
+                            />
+                          ))}
+                        </Box>
+                      )}
+                    >
+                      {daysOfWeekOptions.map((day) => (
+                        <MenuItem key={day.value} value={day.value}>
+                          {day.label}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                )}
+              />
+              <LabeledDropdown
+                label="Include Public Holidays"
+                name="includePublicHolidays"
+                placeholder="Include Holidays"
+                register={register}
+                options={[
+                  { value: "true", label: "Yes" },
+                  { value: "false", label: "No" },
+                ]}
+                error={!!errors.includePublicHolidays}
+                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
+                  setValue("includePublicHolidays", e.target.value === "true");
+                }}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4 mt-2">
+              <LabeledInput
+                label="Duty Start Time"
+                name="dutyStartTime"
+                type="time"
+                required
+                register={register}
+                error={!!errors.dutyStartTime}
+                helperText={
+                  typeof errors.dutyStartTime?.message === "string" ? errors.dutyStartTime?.message : undefined
+                }
+              />
+              <LabeledInput
+                label="Duty End Time"
+                name="dutyEndTime"
+                type="time"
+                required
+                register={register}
+                error={!!errors.dutyEndTime}
+                helperText={typeof errors.dutyEndTime?.message === "string" ? errors.dutyEndTime?.message : undefined}
+              />
+              <LabeledInput
+                label="Check-in Time"
+                name="checkInTime"
+                type="time"
+                register={register}
+                error={!!errors.checkInTime}
+                helperText={
+                  typeof errors.checkInTime?.message === "string"
+                    ? errors.checkInTime?.message
+                    : "Latest allowed check-in time"
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <LabeledInput
+                label="Lateness From"
+                name="latenessFrom"
+                type="time"
+                register={register}
+                error={!!errors.latenessFrom}
+                helperText={
+                  typeof errors.latenessFrom?.message === "string"
+                    ? errors.latenessFrom?.message
+                    : "Start of lateness calculation window"
+                }
+              />
+              <LabeledInput
+                label="Lateness To"
+                name="latenessTo"
+                type="time"
+                register={register}
+                error={!!errors.latenessTo}
+                helperText={
+                  typeof errors.latenessTo?.message === "string"
+                    ? errors.latenessTo?.message
+                    : "End of lateness calculation window"
+                }
+              />
+            </div>
+            {/* Commented out area officer assignment */}
+            {/* <div className="grid grid-cols-1 gap-4 mt-2">
+              <LabeledDropdown
+                label="Assign Area Officer"
+                name="areaOfficerId"
+                placeholder="Select Area Officer"
+                register={register}
+                options={areaOfficerOptions}
+                error={!!errors.areaOfficerId}
+                helperText={
+                  typeof errors.areaOfficerId?.message === "string"
+                    ? errors.areaOfficerId?.message
+                    : "Select an area officer for this shift (optional)"
+                }
+                onChange={(e: React.ChangeEvent<{ value: unknown }>) => {
+                  setValue("areaOfficerId", e.target.value as string);
+                }}
+              />
+            </div> */}
+          </div>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 3 }}>
+            <Button variant="outlined" onClick={handleClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={isPending}
+              startIcon={isPending ? <CircularProgress size={20} /> : null}
+            >
+              {isPending ? "Updating..." : "Save Changes"}
+            </Button>
+          </Box>
+        </form>
+      </Box>
+    </Modal>
+  );
+};
+
+// Patrolling Modal
+export const PatrollingModal = ({ open, onClose, postData, onSuccess }: any) => {
+  const { siteId } = useParams();
+  const { mutate: updateSite, isPending, error, isSuccess } = useClientSiteUpdate();
+  const [localPatrollingEnabled, setLocalPatrollingEnabled] = useState(false);
+
+  // Initialize local state when modal opens
+  useEffect(() => {
+    if (open && postData) {
+      setLocalPatrollingEnabled(postData?.patrolling || false);
+    }
+  }, [open, postData]);
+
+  useEffect(() => {
+    if (isSuccess && onSuccess) {
+      onSuccess();
+    }
+  }, [isSuccess, onSuccess]);
+
+  const handlePatrollingToggle = () => {
+    setLocalPatrollingEnabled(!localPatrollingEnabled);
+  };
+
+  const handleSave = async () => {
+    if (!siteId) return;
+    updateSite({
+      siteId,
+      data: { patrolling: localPatrollingEnabled },
+    });
+  };
+
+  const handleClose = () => {
+    // Reset to original value on close without saving
+    setLocalPatrollingEnabled(postData?.patrolling || false);
+    onClose();
+  };
+
+  return (
+    <Modal open={open} onClose={handleClose}>
+      <Box
+        sx={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          bgcolor: "#ffffff",
+          borderRadius: "8px",
+          boxShadow: 24,
+          p: 4,
+          width: "400px",
+          maxWidth: "90vw",
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold text-[#2A77D5]">Patrolling Settings</h2>
+          <button onClick={handleClose} className="p-2 hover:bg-gray-100 rounded-full" type="button">
+            <X className="w-6 h-6 text-[#2A77D5]" />
+          </button>
+        </div>
+
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Failed to update patrolling settings. Please try again.
+          </Alert>
+        )}
+
+        <div className="flex flex-col gap-4">
+          <Divider />
+
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-medium text-gray-800">Enable Patrolling</h3>
+              <p className="text-sm text-gray-500">
+                {localPatrollingEnabled ? "Patrolling will be enabled" : "Patrolling will be disabled"}
+              </p>
+            </div>
+
+            <button
+              onClick={handlePatrollingToggle}
+              className="inline-flex gap-2 w-fit items-center cursor-pointer hover:opacity-70 transition-opacity"
+              disabled={isPending}
+            >
+              {localPatrollingEnabled ? (
+                <ToggleOnIcon className="text-[#5CC168]" />
+              ) : (
+                <ToggleOffIcon className="text-[#A3A3A3]" />
+              )}
+              {localPatrollingEnabled ? "ON" : "OFF"}
+            </button>
+          </div>
+
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 2 }}>
+            <Button variant="outlined" onClick={handleClose} disabled={isPending}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSave}
+              disabled={isPending}
+              startIcon={isPending ? <CircularProgress size={20} /> : null}
+            >
+              {isPending ? "Saving..." : "Save"}
+            </Button>
+          </Box>
         </div>
       </Box>
     </Modal>

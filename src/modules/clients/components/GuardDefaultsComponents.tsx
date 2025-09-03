@@ -37,62 +37,89 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
   const { clientId } = useParams();
   const { selectedSite } = useClientContext();
 
-  // Calculate date range based on selected view
   const dateRange = useMemo(() => {
     return getDateRangeForView(selectedView, currentDate);
   }, [selectedView, currentDate]);
 
-  // Fetch attendance data for the calendar view
   const { data: attendanceData } = useGetAttendanceCount(clientId || "", dateRange.startDate, dateRange.endDate);
   const { data: uniformData } = useGetUniformDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
   const { data: alertnessData } = useGetAlertnessDefaults(clientId || "", dateRange.startDate, dateRange.endDate);
   const { data: lateData } = useGetLateCount(clientId || "", dateRange.startDate, dateRange.endDate);
   const { data: geofenceData } = useGetGeofenceActivity(clientId || "", dateRange.startDate, dateRange.endDate);
 
-  // Create a map of date to absent count for quick lookup
   const dailyMetricCounts = useMemo(() => {
     const countMap = new Map<string, number>();
 
-    if (selectedMetric === "absent" && attendanceData?.data?.topAbsentGuards) {
-      attendanceData.data.topAbsentGuards.forEach((guard: any) => {
-        // Filter by site if not "ALL SITES"
-        if (selectedSite !== "ALL SITES") {
-          const guardSiteId = guard.siteId; // Assuming the guard has siteId
-          if (guardSiteId !== selectedSite) return;
-        }
+    if (selectedMetric === "absent" && attendanceData?.data?.siteBreakdown) {
+      let siteBreakdown = attendanceData.data.siteBreakdown;
+      if (selectedSite !== "ALL SITES") {
+        siteBreakdown = siteBreakdown.filter((site: any) => site.siteId === selectedSite);
+      }
 
-        guard.absentDuties.forEach((duty: any) => {
-          const dutyDate = new Date(duty.dutyDate).toISOString().split("T")[0];
-          const currentCount = countMap.get(dutyDate) || 0;
-          countMap.set(dutyDate, currentCount + 1);
-        });
+      siteBreakdown.forEach((site: any) => {
+        if (site.absentGuardDetails && site.absentGuardDetails.length > 0) {
+          site.absentGuardDetails.forEach((guard: any) => {
+            guard.absentDuties?.forEach((duty: any) => {
+              if (duty.dutyDate) {
+                const dutyDateObj = new Date(duty.dutyDate);
+                if (!isNaN(dutyDateObj.getTime())) {
+                  const dutyDate = dutyDateObj.toISOString().split("T")[0];
+                  const currentCount = countMap.get(dutyDate) || 0;
+                  countMap.set(dutyDate, currentCount + 1);
+                }
+              }
+            });
+          });
+        }
       });
+
+      if (attendanceData.data.dailyBreakdown) {
+        attendanceData.data.dailyBreakdown.forEach((dayData: any) => {
+          if (selectedSite === "ALL SITES" || dayData.siteId === selectedSite) {
+            const currentCount = countMap.get(dayData.date) || 0;
+            countMap.set(dayData.date, currentCount + dayData.absentCount);
+          }
+        });
+      } else if (attendanceData.data.topAbsentGuards) {
+        attendanceData.data.topAbsentGuards.forEach((guard: any) => {
+          if (selectedSite !== "ALL SITES" && guard.siteId !== selectedSite) return;
+
+          guard.absentDuties?.forEach((duty: any) => {
+            if (duty.dutyDate) {
+              const dutyDateObj = new Date(duty.dutyDate);
+              if (!isNaN(dutyDateObj.getTime())) {
+                const dutyDate = dutyDateObj.toISOString().split("T")[0];
+                const currentCount = countMap.get(dutyDate) || 0;
+                countMap.set(dutyDate, currentCount + 1);
+              }
+            }
+          });
+        });
+      }
     }
 
     if (selectedMetric === "uniform" && uniformData?.data?.sitesWithDefaults) {
       let sitesWithDefaults = uniformData.data.sitesWithDefaults;
-      // Filter by site if not "ALL SITES"
       if (selectedSite !== "ALL SITES") {
         sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
       }
 
       sitesWithDefaults.forEach((site: any) => {
-        site.defaultsByDate.forEach((dayData: any) => {
+        site.defaultsByDate?.forEach((dayData: any) => {
           const currentCount = countMap.get(dayData.date) || 0;
           countMap.set(dayData.date, currentCount + dayData.defaultCount);
         });
       });
     }
 
-    if (selectedMetric === "alertness" && alertnessData?.data?.sitesWithDefaults) {
-      let sitesWithDefaults = alertnessData.data.sitesWithDefaults;
-      // Filter by site if not "ALL SITES"
+    if (selectedMetric === "alertness" && alertnessData?.data?.sitesWithIssues) {
+      let sitesWithIssues = alertnessData.data.sitesWithIssues;
       if (selectedSite !== "ALL SITES") {
-        sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+        sitesWithIssues = sitesWithIssues.filter((site: any) => site.siteId === selectedSite);
       }
 
-      sitesWithDefaults.forEach((site: any) => {
-        site.defaultsByDate.forEach((dayData: any) => {
+      sitesWithIssues.forEach((site: any) => {
+        site.defaultsByDate?.forEach((dayData: any) => {
           const currentCount = countMap.get(dayData.date) || 0;
           countMap.set(dayData.date, currentCount + dayData.defaultCount);
         });
@@ -101,7 +128,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 
     if (selectedMetric === "late" && lateData?.data?.lateGuardsByDate) {
       let lateGuardsByDate = lateData.data.lateGuardsByDate;
-      // Filter by site if not "ALL SITES"
       if (selectedSite !== "ALL SITES") {
         lateGuardsByDate = lateGuardsByDate.filter((dayData: any) => dayData.siteId === selectedSite);
       }
@@ -114,7 +140,6 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 
     if (selectedMetric === "geofence" && geofenceData?.data?.sitesWithGeofenceActivity) {
       let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
-      // Filter by site if not "ALL SITES"
       if (selectedSite !== "ALL SITES") {
         sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
           (siteActivity: any) => siteActivity.siteId === selectedSite
@@ -122,14 +147,24 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
       }
 
       sitesWithGeofenceActivity.forEach((siteActivity: any) => {
-        const currentCount = countMap.get(siteActivity.date) || 0;
-        countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
+        if (siteActivity.date && siteActivity.sessionCount > 0) {
+          const currentCount = countMap.get(siteActivity.date) || 0;
+          countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
+        }
       });
+
+      if (geofenceData.data.dailyActivity) {
+        geofenceData.data.dailyActivity.forEach((dayData: any) => {
+          if (selectedSite === "ALL SITES" || dayData.siteId === selectedSite) {
+            const currentCount = countMap.get(dayData.date) || 0;
+            countMap.set(dayData.date, currentCount + dayData.sessionCount);
+          }
+        });
+      }
     }
 
     if (selectedMetric === "patrol" && geofenceData?.data?.sitesWithGeofenceActivity) {
       let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
-      // Filter by site if not "ALL SITES"
       if (selectedSite !== "ALL SITES") {
         sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
           (siteActivity: any) => siteActivity.siteId === selectedSite
@@ -137,9 +172,20 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
       }
 
       sitesWithGeofenceActivity.forEach((siteActivity: any) => {
-        const currentCount = countMap.get(siteActivity.date) || 0;
-        countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
+        if (siteActivity.date && siteActivity.sessionCount > 0) {
+          const currentCount = countMap.get(siteActivity.date) || 0;
+          countMap.set(siteActivity.date, currentCount + siteActivity.sessionCount);
+        }
       });
+
+      if (geofenceData.data.dailyActivity) {
+        geofenceData.data.dailyActivity.forEach((dayData: any) => {
+          if (selectedSite === "ALL SITES" || dayData.siteId === selectedSite) {
+            const currentCount = countMap.get(dayData.date) || 0;
+            countMap.set(dayData.date, currentCount + dayData.sessionCount);
+          }
+        });
+      }
     }
 
     return countMap;
@@ -170,8 +216,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
           const metricCount = dailyMetricCounts.get(dateKey) || 0;
           const isToday = date.toDateString() === currentDate.toDateString();
 
-          // Convert full day name to short format for display (Monday-based)
-          const dayNames = ["S", "M", "T", "W", "T", "F", "S"]; // Sunday=0, Monday=1, etc.
+          const dayNames = ["S", "M", "T", "W", "T", "F", "S"];
           const shortDayName = dayNames[date.getDay()];
 
           return (
@@ -230,7 +275,7 @@ const CalendarComponent: React.FC<CalendarComponentProps> = ({
 
   const renderMonthView = () => {
     const monthDays = getCurrentMonthDays();
-    const dayHeaders = ["S", "M", "T", "W", "T", "F", "S"]; // Match week view format
+    const dayHeaders = ["S", "M", "T", "W", "T", "F", "S"];
 
     return (
       <div className="w-full max-w-lg mx-auto">
@@ -330,7 +375,6 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
 
     let siteBreakdown = attendanceCountData.data.siteBreakdown;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
       siteBreakdown = siteBreakdown.filter((site: any) => site.siteId === selectedSite);
     }
@@ -356,7 +400,6 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
 
     let sitesWithDefaults = uniformData.data.sitesWithDefaults;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
       sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
     }
@@ -364,7 +407,6 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
     const uniformSites = sitesWithDefaults
       .filter((site: any) => site.totalDefaults > 0)
       .map((site: any, index: number) => {
-        // Count unique guards from defaultsByDate
         const uniqueGuards = new Set();
         site.defaultsByDate?.forEach((dayData: any) => {
           dayData.guards?.forEach((guard: any) => {
@@ -387,21 +429,19 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
   }, [uniformData, selectedSite]);
 
   const alertnessGuardsData = useMemo(() => {
-    if (!alertnessData?.data?.sitesWithDefaults) {
+    if (!alertnessData?.data?.sitesWithIssues) {
       return [];
     }
 
-    let sitesWithDefaults = alertnessData.data.sitesWithDefaults;
+    let sitesWithIssues = alertnessData.data.sitesWithIssues;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
-      sitesWithDefaults = sitesWithDefaults.filter((site: any) => site.siteId === selectedSite);
+      sitesWithIssues = sitesWithIssues.filter((site: any) => site.siteId === selectedSite);
     }
 
-    const alertnessSites = sitesWithDefaults
+    const alertnessSites = sitesWithIssues
       .filter((site: any) => site.totalDefaults > 0)
       .map((site: any, index: number) => {
-        // Count unique guards from defaultsByDate
         const uniqueGuards = new Set();
         site.defaultsByDate?.forEach((dayData: any) => {
           dayData.guards?.forEach((guard: any) => {
@@ -430,12 +470,10 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
 
     let lateGuardsByDate = lateData.data.lateGuardsByDate;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
       lateGuardsByDate = lateGuardsByDate.filter((dayData: any) => dayData.siteId === selectedSite);
     }
 
-    // Group by site and aggregate data
     const siteMap = new Map();
     lateGuardsByDate.forEach((dayData: any) => {
       const { siteId, siteName, guardCount, guards } = dayData;
@@ -473,7 +511,6 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
     if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
     let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
       sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
         (siteActivity: any) => siteActivity.siteId === selectedSite
@@ -532,7 +569,6 @@ const CommonDataGrid = ({ selectedMetric }: { selectedMetric: string }) => {
     if (!geofenceData?.data?.sitesWithGeofenceActivity) return [];
     let sitesWithGeofenceActivity = geofenceData.data.sitesWithGeofenceActivity;
 
-    // Filter by selected site if not "ALL SITES"
     if (selectedSite !== "ALL SITES") {
       sitesWithGeofenceActivity = sitesWithGeofenceActivity.filter(
         (siteActivity: any) => siteActivity.siteId === selectedSite
@@ -703,9 +739,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}
@@ -730,9 +766,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}
@@ -757,9 +793,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}
@@ -784,9 +820,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}
@@ -811,9 +847,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}
@@ -838,9 +874,9 @@ export const renderMetricComponent = (
         return <CommonDataGrid selectedMetric={selectedMetric} />;
       } else if (selectedView === "week" || selectedView === "month" || selectedView === "custom") {
         return (
-          <Box sx={{ width: "100%", flexGrow: 1, minHeight: 0, overflow: "hidden", p: 4 }}>
-            <div className="flex flex-col h-full">
-              <div className="flex-1 overflow-hidden">
+          <Box sx={{ width: "100%", height: "100%", flexGrow: 1, minHeight: 0, overflow: "auto", p: 2 }}>
+            <div className="flex flex-col h-full" style={{ minHeight: 0 }}>
+              <div className="flex-1" style={{ minHeight: 0, overflow: "auto" }}>
                 {selectedView && currentDate ? (
                   <CalendarComponent
                     selectedView={selectedView}

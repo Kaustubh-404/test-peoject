@@ -7,6 +7,7 @@ import CalendarViewMonthOutlinedIcon from "@mui/icons-material/CalendarViewMonth
 import DirectionsRunOutlinedIcon from "@mui/icons-material/DirectionsRunOutlined";
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import HistoryToggleOffIcon from "@mui/icons-material/HistoryToggleOff";
+import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
 import MapsHomeWorkOutlinedIcon from "@mui/icons-material/MapsHomeWorkOutlined";
 import Person2OutlinedIcon from "@mui/icons-material/Person2Outlined";
 import QueryBuilderOutlinedIcon from "@mui/icons-material/QueryBuilderOutlined";
@@ -14,13 +15,16 @@ import RemoveRedEyeOutlinedIcon from "@mui/icons-material/RemoveRedEyeOutlined";
 import SwapHorizOutlinedIcon from "@mui/icons-material/SwapHorizOutlined";
 import TaskAltOutlinedIcon from "@mui/icons-material/TaskAltOutlined";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
-import { Box, Button, CircularProgress, Divider, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Divider, Menu, MenuItem, Typography } from "@mui/material";
 import { Shirt } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAreaOfficerTasks,
+  useAreaOfficers,
   useDashboardOverview,
+  useIncidentReports,
   useLateUniformSummary,
+  useLivelinessAlerts,
   useShiftPerformanceIssues,
 } from "../apis/hooks/useDashboard";
 import DashboardTableView from "../components/DashboardTableView";
@@ -37,11 +41,29 @@ type TableViewType =
   | "incidents"
   | "area-officers-tasks";
 
+/**
+ * Live Dashboard Component
+ *
+ * This component provides a comprehensive dashboard with multiple views:
+ * - LIVE: Shows data from the last 24 hours
+ * - DAY: Shows data for a selected day
+ * - MONTH: Shows data for a selected month
+ *
+ * Integrates with the following APIs:
+ * - Dashboard Overview: /api/v2/dashboard/overview
+ * - Liveliness Alerts: /api/v2/dashboard/liveliness-alerts
+ * - Late Uniform Summary: /api/v2/dashboard/late-uniform-summary
+ * - Shift Performance Issues: /api/v2/dashboard/shift-performance-issues
+ * - Area Officers: /api/v2/dashboard/area-officers-only/absent-late-uniform
+ * - Incident Reports: /api/v2/dashboard/incident-reports
+ * - Tasks: /api/v2/tasks
+ */
+
 export default function LiveDashboard() {
   const [selectedView, setSelectedView] = useState<ViewType>("live");
   const [selectedTableView, setSelectedTableView] = useState<TableViewType>("overview");
   const [selectedColumn, setSelectedColumn] = useState<string>("absent");
-  const [currentDate] = useState(new Date());
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const currentFormatted = formatDate(currentDate);
   const todayString = `${currentFormatted.dayName} ${currentFormatted.day}/${currentFormatted.month}/${currentFormatted.year}`;
@@ -69,9 +91,38 @@ export default function LiveDashboard() {
 
   const opAgencyId = "agency_0";
 
+  const { startDate, endDate } = useMemo(() => {
+    let startDate: Date;
+    let endDate: Date;
+
+    if (selectedView === "day") {
+      // Day view: selected day from 00:00:00 to 23:59:59
+      startDate = new Date(currentDate);
+      startDate.setHours(0, 0, 0, 0);
+
+      endDate = new Date(currentDate);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (selectedView === "month") {
+      // Month view: first day to last day of selected month
+      startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+      startDate.setHours(0, 0, 0, 0);
+
+      endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else {
+      // Live view: last 24 hours from current time
+      endDate = new Date();
+      startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
+    }
+
+    return {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    };
+  }, [selectedView, currentDate]);
+
   const { data: clientsResponse, isLoading, error } = useGetClients(opAgencyId);
 
-  // Fetch dashboard overview data for summary cards
   const {
     data: dashboardData,
     isLoading: isDashboardLoading,
@@ -82,9 +133,10 @@ export default function LiveDashboard() {
     limit: 50,
     sortOrder: "desc",
     incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
   });
 
-  // Fetch late uniform summary data for guards section
   const {
     data: lateUniformData,
     isLoading: isLateUniformLoading,
@@ -95,9 +147,10 @@ export default function LiveDashboard() {
     limit: 50,
     sortOrder: "desc",
     incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
   });
 
-  // Fetch shift performance issues data for shifts section
   const {
     data: shiftPerformanceData,
     isLoading: isShiftPerformanceLoading,
@@ -108,9 +161,24 @@ export default function LiveDashboard() {
     limit: 50,
     sortOrder: "desc",
     incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
   });
 
-  // Fetch area officer tasks data for area-officers-tasks section
+  const {
+    data: areaOfficersData,
+    isLoading: isAreaOfficersLoading,
+    error: areaOfficersError,
+  } = useAreaOfficers({
+    opAgencyId,
+    page: 1,
+    limit: 50,
+    sortOrder: "desc",
+    incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
+  });
+
   const {
     data: areaOfficerTasksData,
     isLoading: isAreaOfficerTasksLoading,
@@ -121,7 +189,30 @@ export default function LiveDashboard() {
     limit: 50,
   });
 
-  // Calculate totals from dashboard data for summary cards
+  const {
+    data: incidentReportsData,
+    isLoading: isIncidentReportsLoading,
+    error: incidentReportsError,
+  } = useIncidentReports({
+    opAgencyId,
+    page: 1,
+    limit: 50,
+    sortOrder: "desc",
+    incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
+  });
+
+  const { isLoading: isLivelinessAlertsLoading, error: livelinessAlertsError } = useLivelinessAlerts({
+    opAgencyId,
+    page: 1,
+    limit: 50,
+    sortOrder: "desc",
+    incidentStatus: "ALL",
+    fromDate: startDate,
+    toDate: endDate,
+  });
+
   const overviewData = dashboardData?.data?.data?.[0]?.overviewData || [];
   const totals = overviewData.reduce(
     (acc, client) => ({
@@ -134,21 +225,33 @@ export default function LiveDashboard() {
     { absent: 0, late: 0, uniform: 0, alert: 0, geofence: 0 }
   );
 
-  // Calculate late and uniform totals from late uniform summary
   const lateUniformSummary = lateUniformData?.data?.data?.[0];
   const guardTotals = {
     late: lateUniformSummary?.totalLateCount || 0,
     uniform: lateUniformSummary?.totalUniformDefaultCount || 0,
   };
 
-  // Extract total counts for shift performance
   const shiftPerformanceSummary: any = shiftPerformanceData?.data?.data?.[0] || {};
 
-  // Extract total counts for area officer tasks
+  const incidentReportSummary = {
+    totalIncidents: incidentReportsData?.data?.data?.[0]?.totalIncidents || 0,
+    openIncidents: incidentReportsData?.data?.data?.[0]?.openIncidents || 0,
+    closedIncidents: incidentReportsData?.data?.data?.[0]?.closedIncidents || 0,
+  };
+
+  const areaOfficerSummary = {
+    absent: areaOfficersData?.data?.data?.[0]?.totalAbsentCount || 0,
+    late: areaOfficersData?.data?.data?.[0]?.totalLateCount || 0,
+    uniform: areaOfficersData?.data?.data?.[0]?.totalUniformDefaultCount || 0,
+  };
+
   const areaOfficerTasksSummary = {
-    overdueTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "OVERDUE")?.length || 0,
-    pendingTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "PENDING")?.length || 0,
-    completedTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.status === "COMPLETED")?.length || 0,
+    overdueTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.taskStatus === "OVERDUE")?.length || 0,
+    pendingTasks: areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.taskStatus === "PENDING")?.length || 0,
+    completedTasks:
+      areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.taskStatus === "COMPLETED")?.length || 0,
+    inProgressTasks:
+      areaOfficerTasksData?.data?.tasks?.filter((task: any) => task.taskStatus === "INPROGRESS")?.length || 0,
   };
 
   const [showFavouritesOnly] = useState(false);
@@ -201,12 +304,71 @@ export default function LiveDashboard() {
     setFilteredRows(result);
   };
 
+  const [dayMenuAnchor, setDayMenuAnchor] = useState<null | HTMLElement>(null);
+  const [monthMenuAnchor, setMonthMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const handleDayMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setDayMenuAnchor(event.currentTarget);
+  };
+  const handleMonthMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setMonthMenuAnchor(event.currentTarget);
+  };
+  const handleDayMenuClose = () => setDayMenuAnchor(null);
+  const handleMonthMenuClose = () => setMonthMenuAnchor(null);
+
+  const handleDateSelect = (date: Date, view: ViewType) => {
+    setCurrentDate(date);
+    setSelectedView(view);
+    setDayMenuAnchor(null);
+    setMonthMenuAnchor(null);
+  };
+
+  const generateDateOptions = (type: "day" | "month") => {
+    const options = [];
+    const today = new Date();
+    if (type === "day") {
+      const todayFormatted = formatDate(today);
+      options.push({
+        date: new Date(today),
+        label: `${todayFormatted.dayName} ${todayFormatted.day}/${todayFormatted.month}/${todayFormatted.year}`,
+      });
+      for (let i = 1; i <= 10; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const formatted = formatDate(date);
+        options.push({
+          date,
+          label: `${formatted.dayName} ${formatted.day}/${formatted.month}/${formatted.year}`,
+        });
+      }
+    } else if (type === "month") {
+      const currentFormatted = formatDate(today);
+      options.push({
+        date: new Date(today),
+        label: `${currentFormatted.monthName} ${currentFormatted.year}`,
+      });
+      for (let i = 1; i <= 12; i++) {
+        const date = new Date(today);
+        date.setMonth(today.getMonth() - i);
+        const formatted = formatDate(date);
+        options.push({
+          date,
+          label: `${formatted.monthName} ${formatted.year}`,
+        });
+      }
+    }
+    return options;
+  };
+
   if (
     isLoading ||
     isDashboardLoading ||
     isLateUniformLoading ||
     isShiftPerformanceLoading ||
-    isAreaOfficerTasksLoading
+    isAreaOfficersLoading ||
+    isAreaOfficerTasksLoading ||
+    isIncidentReportsLoading ||
+    isLivelinessAlertsLoading
   ) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -216,11 +378,28 @@ export default function LiveDashboard() {
     );
   }
 
-  if (error || dashboardError || lateUniformError || shiftPerformanceError || areaOfficerTasksError) {
+  if (
+    error ||
+    dashboardError ||
+    lateUniformError ||
+    shiftPerformanceError ||
+    areaOfficersError ||
+    areaOfficerTasksError ||
+    incidentReportsError ||
+    livelinessAlertsError
+  ) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <Typography color="error">
-          Error loading dashboard: {error?.message || dashboardError?.message || lateUniformError?.message}
+          Error loading dashboard:{" "}
+          {error?.message ||
+            dashboardError?.message ||
+            lateUniformError?.message ||
+            shiftPerformanceError?.message ||
+            areaOfficersError?.message ||
+            areaOfficerTasksError?.message ||
+            incidentReportsError?.message ||
+            livelinessAlertsError?.message}
         </Typography>
       </Box>
     );
@@ -230,8 +409,13 @@ export default function LiveDashboard() {
     <div>
       <div className="flex flex-row justify-between mb-4">
         <div className="flex flex-row items-center text-xl gap-2 font-semibold">
-          <h2 className="">LIVE: 24 HOURS DASHBOARD</h2>
-          <p className="text-[#707070] text-sm">UPDATED 5 MINUTES AGO</p>
+          <h2 className="">
+            {selectedView === "live"
+              ? "LIVE: 24 HOURS DASHBOARD"
+              : selectedView === "day"
+                ? `DAY DASHBOARD: ${todayString}`
+                : `MONTH DASHBOARD: ${monthString}`}
+          </h2>
         </div>
         <div className="flex flex-row gap-4">
           <Button
@@ -247,21 +431,36 @@ export default function LiveDashboard() {
             variant="outlined"
             size="small"
             sx={getButtonStyles("day", selectedView === "day")}
-            onClick={() => handleViewChange("day")}
+            onClick={handleDayMenuOpen}
+            endIcon={<KeyboardArrowDownIcon />}
           >
             <EventOutlinedIcon sx={{ mr: 1 }} />
             {selectedView === "day" ? `DAY | ${todayString}` : "DAY"}
           </Button>
-
+          <Menu anchorEl={dayMenuAnchor} open={Boolean(dayMenuAnchor)} onClose={handleDayMenuClose}>
+            {generateDateOptions("day").map((option, index) => (
+              <MenuItem key={index} onClick={() => handleDateSelect(option.date, "day")}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Menu>
           <Button
             variant="outlined"
             size="small"
             sx={getButtonStyles("month", selectedView === "month")}
-            onClick={() => handleViewChange("month")}
+            onClick={handleMonthMenuOpen}
+            endIcon={<KeyboardArrowDownIcon />}
           >
             <CalendarViewMonthOutlinedIcon sx={{ mr: 1 }} />
             {selectedView === "month" ? `MONTH | ${monthString}` : "MONTH"}
           </Button>
+          <Menu anchorEl={monthMenuAnchor} open={Boolean(monthMenuAnchor)} onClose={handleMonthMenuClose}>
+            {generateDateOptions("month").map((option, index) => (
+              <MenuItem key={index} onClick={() => handleDateSelect(option.date, "month")}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </Menu>
         </div>
       </div>
       <div className="flex flex-row gap-4 bg-[#F7F7F7] p-4 rounded-lg">
@@ -274,12 +473,16 @@ export default function LiveDashboard() {
               display: "flex",
               flexDirection: "column",
               alignItems: "center",
+              "& .MuiSvgIcon-root": {
+                color: "white !important",
+              },
             }}
             onClick={() => handleTableViewChange("overview")}
           >
             Overview
             <RemoveRedEyeOutlinedIcon sx={{ ml: 1 }} />
           </Button>
+
           <Button
             variant="contained"
             size="small"
@@ -472,7 +675,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>43</span>
+                <span>{shiftPerformanceSummary.totalPatrolCount ?? 0}</span>
                 <DirectionsRunOutlinedIcon
                   sx={{
                     color: selectedTableView === "shifts" ? "white" : "#2A77D5",
@@ -506,7 +709,7 @@ export default function LiveDashboard() {
               }}
             >
               <div className="flex flex-col items-center p-2">
-                <span>02</span>
+                <span>{areaOfficerSummary.absent.toString().padStart(2, "0")}</span>
                 <Person2OutlinedIcon
                   sx={{
                     color: selectedTableView === "area-officers" ? "white" : "#2A77D5",
@@ -529,7 +732,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>01</span>
+                <span>{areaOfficerSummary.late.toString().padStart(2, "0")}</span>
                 <QueryBuilderOutlinedIcon
                   sx={{
                     color: selectedTableView === "area-officers" ? "white" : "#2A77D5",
@@ -552,7 +755,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>04</span>
+                <span>{areaOfficerSummary.uniform.toString().padStart(2, "0")}</span>
                 <Shirt
                   className="text-[20px]"
                   style={{
@@ -586,7 +789,7 @@ export default function LiveDashboard() {
               }}
             >
               <div className="flex flex-col items-center p-2">
-                <span>02</span>
+                <span>{incidentReportSummary.openIncidents}</span>
                 <HistoryToggleOffIcon
                   sx={{
                     color: selectedTableView === "incidents" ? "white" : "#2A77D5",
@@ -609,7 +812,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>06</span>
+                <span>{incidentReportSummary.closedIncidents}</span>
                 <TaskAltOutlinedIcon
                   sx={{
                     color: selectedTableView === "incidents" ? "white" : "#2A77D5",
@@ -666,7 +869,7 @@ export default function LiveDashboard() {
                 }}
               />
               <div className="flex flex-col items-center p-2">
-                <span>{areaOfficerTasksSummary.pendingTasks ?? 0}</span>
+                <span>{areaOfficerTasksSummary.pendingTasks + areaOfficerTasksSummary.inProgressTasks || 0}</span>
                 <HistoryToggleOffIcon
                   sx={{
                     color: selectedTableView === "area-officers-tasks" ? "white" : "#2A77D5",

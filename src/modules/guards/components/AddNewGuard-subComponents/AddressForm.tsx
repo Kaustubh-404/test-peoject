@@ -2,6 +2,8 @@ import { Autocomplete, Box, Checkbox, Divider, FormControlLabel, TextField, Typo
 import React, { useEffect, useState } from "react";
 import type { UseFormRegister, UseFormSetValue, UseFormTrigger, UseFormWatch } from "react-hook-form";
 import LabeledInput from "../LabeledInput";
+// 🔥 NEW: Import Indian states and districts data
+import { getAllStates, getDistrictsByState } from "../../types/indianStatesDistricts";
 
 // Define error types
 interface AddressFieldErrors {
@@ -32,50 +34,18 @@ interface AddressFormProps {
   trigger?: UseFormTrigger<any>;
 }
 
-// Indian States and Union Territories
-const INDIAN_STATES = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-  "Andaman and Nicobar Islands",
-  "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Jammu and Kashmir",
-  "Ladakh",
-  "Lakshadweep",
-  "Puducherry",
-];
-
 const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, watch, trigger }) => {
   const [sameAddress, setSameAddress] = useState(false);
   const [localState, setLocalState] = useState<string>("");
   const [permanentState, setPermanentState] = useState<string>("");
+  // 🔥 NEW: States for district management
+  const [localDistrict, setLocalDistrict] = useState<string>("");
+  const [, setPermanentDistrict] = useState<string>("");
+  const [localDistricts, setLocalDistricts] = useState<string[]>([]);
+  const [, setPermanentDistricts] = useState<string[]>([]);
+
+  // 🔥 NEW: Get all states from the data module
+  const INDIAN_STATES = getAllStates();
 
   // Watch checkbox value
   const watchSameAddress = watch ? watch("address.sameAsPermanent") : false;
@@ -85,7 +55,7 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
     setSameAddress(watchSameAddress);
   }, [watchSameAddress]);
 
-  // Register state fields for validation
+  // Register state and district fields for validation
   useEffect(() => {
     if (register) {
       register("address.localAddress.state", {
@@ -123,17 +93,57 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
           },
         },
       });
-    }
-  }, [register]);
 
-  // Initialize state values from form data
+      // 🔥 NEW: Register district fields
+      register("address.localAddress.district", {
+        required: "District selection is required",
+        validate: {
+          notEmpty: (value: string) => {
+            if (!value || value.trim() === "") {
+              return "Please select a District";
+            }
+            return true;
+          },
+        },
+      });
+
+      register("address.permanentAddress.district", {
+        required: "District selection is required",
+        validate: {
+          notEmpty: (value: string) => {
+            if (!value || value.trim() === "") {
+              return "Please select a District";
+            }
+            return true;
+          },
+        },
+      });
+    }
+  }, [register, INDIAN_STATES]);
+
+  // Initialize state and district values from form data
   useEffect(() => {
     if (watch) {
       const localStateValue = watch("address.localAddress.state") || "";
       const permanentStateValue = watch("address.permanentAddress.state") || "";
+      const localDistrictValue = watch("address.localAddress.district") || "";
+      const permanentDistrictValue = watch("address.permanentAddress.district") || "";
 
       setLocalState(localStateValue);
       setPermanentState(permanentStateValue);
+      setLocalDistrict(localDistrictValue);
+      setPermanentDistrict(permanentDistrictValue);
+
+      // Set districts based on states
+      if (localStateValue) {
+        const localDistrictsForState = getDistrictsByState(localStateValue).map((d) => d.name);
+        setLocalDistricts(localDistrictsForState);
+      }
+
+      if (permanentStateValue) {
+        const permanentDistrictsForState = getDistrictsByState(permanentStateValue).map((d) => d.name);
+        setPermanentDistricts(permanentDistrictsForState);
+      }
     }
   }, [watch]);
 
@@ -147,13 +157,22 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
         setValue(`address.permanentAddress.${field}`, localValue);
       });
 
-      // Update permanent state dropdown
+      // Update permanent state and district dropdowns
       const currentLocalState = watch("address.localAddress.state") || "";
+      const currentLocalDistrict = watch("address.localAddress.district") || "";
       setPermanentState(currentLocalState);
+      setPermanentDistrict(currentLocalDistrict);
 
-      // Trigger validation for permanent address state
+      // Update permanent districts
+      if (currentLocalState) {
+        const districtsForState = getDistrictsByState(currentLocalState).map((d) => d.name);
+        setPermanentDistricts(districtsForState);
+      }
+
+      // Trigger validation for permanent address
       if (trigger) {
         trigger("address.permanentAddress.state");
+        trigger("address.permanentAddress.district");
       }
     }
   }, [
@@ -178,17 +197,63 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
     if (setValue) {
       setValue("address.localAddress.state", stateValue, { shouldValidate: true });
 
+      // 🔥 NEW: Reset district when state changes and load new districts
+      setLocalDistrict("");
+      setValue("address.localAddress.district", "", { shouldValidate: true });
+
+      if (stateValue) {
+        const districtsForState = getDistrictsByState(stateValue).map((d) => d.name);
+        setLocalDistricts(districtsForState);
+      } else {
+        setLocalDistricts([]);
+      }
+
       // Manually trigger validation
       if (trigger) {
         trigger("address.localAddress.state");
+        trigger("address.localAddress.district");
       }
 
       // If same address, also update permanent
       if (sameAddress) {
         setPermanentState(stateValue);
+        setPermanentDistrict("");
         setValue("address.permanentAddress.state", stateValue, { shouldValidate: true });
+        setValue("address.permanentAddress.district", "", { shouldValidate: true });
+
+        if (stateValue) {
+          const districtsForState = getDistrictsByState(stateValue).map((d) => d.name);
+          setPermanentDistricts(districtsForState);
+        } else {
+          setPermanentDistricts([]);
+        }
+
         if (trigger) {
           trigger("address.permanentAddress.state");
+          trigger("address.permanentAddress.district");
+        }
+      }
+    }
+  };
+
+  // 🔥 NEW: Handle local district change
+  const handleLocalDistrictChange = (_event: any, newValue: string | null) => {
+    const districtValue = newValue || "";
+    setLocalDistrict(districtValue);
+
+    if (setValue) {
+      setValue("address.localAddress.district", districtValue, { shouldValidate: true });
+
+      if (trigger) {
+        trigger("address.localAddress.district");
+      }
+
+      // If same address, also update permanent
+      if (sameAddress) {
+        setPermanentDistrict(districtValue);
+        setValue("address.permanentAddress.district", districtValue, { shouldValidate: true });
+        if (trigger) {
+          trigger("address.permanentAddress.district");
         }
       }
     }
@@ -202,12 +267,26 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
     if (setValue) {
       setValue("address.permanentAddress.state", stateValue, { shouldValidate: true });
 
+      // 🔥 NEW: Reset district when state changes and load new districts
+      setPermanentDistrict("");
+      setValue("address.permanentAddress.district", "", { shouldValidate: true });
+
+      if (stateValue) {
+        const districtsForState = getDistrictsByState(stateValue).map((d) => d.name);
+        setPermanentDistricts(districtsForState);
+      } else {
+        setPermanentDistricts([]);
+      }
+
       // Manually trigger validation
       if (trigger) {
         trigger("address.permanentAddress.state");
+        trigger("address.permanentAddress.district");
       }
     }
   };
+
+  // 🔥 NEW: Handle permanent district change
 
   return (
     <Box
@@ -346,30 +425,40 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
                 helperText={errors?.address?.localAddress?.city?.message}
               />
             </Box>
+            {/* 🔥 NEW: District dropdown with state dependency */}
             <Box sx={{ flex: 1 }}>
-              <LabeledInput
-                label="District"
-                name="address.localAddress.district"
-                placeholder="Enter District Name"
-                required
-                register={register}
-                validation={{
-                  required: "District is required",
-                  minLength: {
-                    value: 2,
-                    message: "District must be at least 2 characters long",
-                  },
-                  validate: {
-                    notEmpty: (value: string) => {
-                      if (!value || value.trim() === "") {
-                        return "District cannot be empty";
-                      }
-                      return true;
-                    },
-                  },
+              <Typography
+                variant="body2"
+                sx={{
+                  mb: 0.5,
+                  color: errors?.address?.localAddress?.district ? "error.main" : "#707070",
+                  fontFamily: "Mukta",
                 }}
-                error={!!errors?.address?.localAddress?.district}
-                helperText={errors?.address?.localAddress?.district?.message}
+              >
+                District <span style={{ color: "red" }}>*</span>
+              </Typography>
+
+              <Autocomplete
+                value={localDistrict}
+                onChange={handleLocalDistrictChange}
+                options={localDistricts}
+                disabled={!localState || localDistricts.length === 0}
+                isOptionEqualToValue={(option, value) => option === value}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    placeholder={localState ? "Select District" : "Select State first"}
+                    size="small"
+                    error={!!errors?.address?.localAddress?.district}
+                    helperText={errors?.address?.localAddress?.district?.message}
+                    sx={{
+                      "& .MuiOutlinedInput-root": {
+                        borderRadius: "4px",
+                      },
+                    }}
+                  />
+                )}
+                sx={{ width: "100%" }}
               />
             </Box>
             <Box sx={{ flex: 1 }}>
@@ -400,7 +489,7 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
             </Box>
           </Box>
 
-          {/* Row 3 - State (Dropdown), Landmark */}
+          {/* Row 3 - State, Landmark */}
           <Box sx={{ display: "flex", gap: 2 }}>
             <Box sx={{ flex: 1 }}>
               <Typography
@@ -596,75 +685,6 @@ const AddressForm: React.FC<AddressFormProps> = ({ register, errors, setValue, w
                             notEmpty: (value: string) => {
                               if (!value || value.trim() === "") {
                                 return "City/Town/Village cannot be empty";
-                              }
-                              return true;
-                            },
-                          },
-                        }
-                      : {}
-                  }
-                  error={!!errors?.address?.permanentAddress?.city}
-                  helperText={errors?.address?.permanentAddress?.city?.message}
-                />
-              </Box>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Box sx={{ pointerEvents: sameAddress ? "none" : "auto", opacity: sameAddress ? 0.6 : 1 }}>
-                <LabeledInput
-                  label="District (As per Aadhaar)"
-                  name="address.permanentAddress.district"
-                  placeholder="Enter District Name"
-                  required
-                  register={register}
-                  validation={
-                    !sameAddress
-                      ? {
-                          required: "District is required",
-                          minLength: {
-                            value: 2,
-                            message: "District must be at least 2 characters long",
-                          },
-                          validate: {
-                            notEmpty: (value: string) => {
-                              if (!value || value.trim() === "") {
-                                return "District cannot be empty";
-                              }
-                              return true;
-                            },
-                          },
-                        }
-                      : {}
-                  }
-                  error={!!errors?.address?.permanentAddress?.district}
-                  helperText={errors?.address?.permanentAddress?.district?.message}
-                />
-              </Box>
-            </Box>
-            <Box sx={{ flex: 1 }}>
-              <Box
-                sx={{
-                  pointerEvents: sameAddress ? "none" : "auto",
-                  opacity: sameAddress ? 0.6 : 1,
-                }}
-              >
-                <LabeledInput
-                  label="Pincode (As per Aadhaar)"
-                  name="address.permanentAddress.pincode"
-                  placeholder="Enter Pincode"
-                  required
-                  register={register}
-                  validation={
-                    !sameAddress
-                      ? {
-                          required: "Pincode is required",
-                          pattern: {
-                            value: /^[0-9]{6}$/,
-                            message: "Pincode must be exactly 6 digits",
-                          },
-                          validate: {
-                            notEmpty: (value: string) => {
-                              if (!value || value.trim() === "") {
-                                return "Pincode cannot be empty";
                               }
                               return true;
                             },

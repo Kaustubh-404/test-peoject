@@ -1,5 +1,6 @@
-// File: src/services/guard.service.ts - Updated with missing API fields
-import { authApi, guardsApi } from "../../../config/axios"; // 🔥 NEW: Import authApi for guard types
+// File: src/services/guard.service.ts - Fixed with enhanced error handling
+
+import { authApi, guardsApi } from "../../../config/axios";
 import {
   AddressType,
   ContactType,
@@ -249,7 +250,7 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
       type: personalDetails.profilePhoto.type,
     });
 
-    console.log("🖼️ Profile photo processed:", {
+    console.log("Profile photo processed:", {
       originalName: personalDetails.profilePhoto.name,
       newName: newFileName,
       size: personalDetails.profilePhoto.size,
@@ -268,7 +269,7 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     }
   }
 
-  // 🔥 NEW: Build employment object as required by API
+  // Build employment object as required by API
   const employment = {
     licenseNumber: employmentDetails.licenseNumber?.trim() || "",
     dateOfIssue: employmentDetails.dateOfIssue || "",
@@ -289,13 +290,13 @@ const transformFormDataToApiRequest = (formData: GuardFormData): CreateGuardRequ
     status: guardStatus,
     userType: "GUARD",
 
-    // 🔥 NEW: Add guardType field as required by API
+    // Add guardType field as required by API
     guardType: employmentDetails.guardType?.trim() || "",
 
-    // 🔥 NEW: Add employment object as required by API
+    // Add employment object as required by API
     employment,
 
-    // 🔥 NEW: Add files array (empty since no file uploads but required by API)
+    // Add files array (empty since no file uploads but required by API)
     files: [],
 
     // Optional fields
@@ -336,7 +337,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
   formData.append("status", apiRequest.status);
   formData.append("userType", apiRequest.userType);
 
-  // 🔥 NEW: Add guardType field
+  // Add guardType field
   if (apiRequest.guardType) {
     formData.append("guardType", apiRequest.guardType);
   }
@@ -353,7 +354,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
 
   // Handle photo upload with enhanced filename handling
   if (apiRequest.photo) {
-    console.log("📷 Processing photo for upload:", {
+    console.log("Processing photo for upload:", {
       originalName: apiRequest.photo.name,
       size: apiRequest.photo.size,
       type: apiRequest.photo.type,
@@ -369,7 +370,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
       !finalFileName || invalidNames.includes(finalFileName.toLowerCase()) || finalFileName.trim() === "";
 
     if (isInvalidName) {
-      console.log("⚠️ Invalid filename detected, generating new one...");
+      console.log("Invalid filename detected, generating new one...");
 
       // Generate a proper filename
       const timestamp = Date.now();
@@ -400,7 +401,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
         lastModified: apiRequest.photo.lastModified || Date.now(),
       });
 
-      console.log("✅ Generated new filename:", {
+      console.log("Generated new filename:", {
         oldName: apiRequest.photo.name,
         newName: finalFileName,
         extension: extension,
@@ -411,7 +412,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
     // Append to FormData with explicit filename parameter
     formData.append("photo", finalFile, finalFileName);
 
-    console.log("📤 Photo added to FormData:", {
+    console.log("Photo added to FormData:", {
       fieldName: "photo",
       fileName: finalFileName,
       fileSize: finalFile.size,
@@ -419,7 +420,7 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
       isFileInstance: finalFile instanceof File,
     });
   } else {
-    console.log("❌ No photo provided for upload");
+    console.log("No photo provided for upload");
   }
 
   // Add JSON arrays as strings
@@ -429,42 +430,38 @@ const transformToFormData = (apiRequest: CreateGuardRequest): FormData => {
   if (apiRequest.familyMembers) formData.append("familyMembers", JSON.stringify(apiRequest.familyMembers));
   if (apiRequest.documents) formData.append("documents", JSON.stringify(apiRequest.documents));
 
-  // 🔥 NEW: Add employment object as JSON
+  // Add employment object as JSON
   if (apiRequest.employment) {
     formData.append("employment", JSON.stringify(apiRequest.employment));
   }
 
-  // 🔥 REMOVED: Don't add files array - backend doesn't expect it
-  // The API documentation shows 'files' as required, but validation rejects it
-  // Since we're not uploading any document files, we'll omit this field entirely
-
   // Final verification log
-  console.log("🎯 FormData creation complete. Total entries:", Array.from(formData.entries()).length);
-  console.log("📋 Documents metadata only (no files):", apiRequest.documents?.length || 0, "documents");
-  console.log("🔧 Employment object added:", !!apiRequest.employment);
-  console.log("📁 Files array omitted (not expected by backend validation)");
+  console.log("FormData creation complete. Total entries:", Array.from(formData.entries()).length);
+  console.log("Documents metadata only (no files):", apiRequest.documents?.length || 0, "documents");
+  console.log("Employment object added:", !!apiRequest.employment);
+  console.log("Files array omitted (not expected by backend validation)");
 
   return formData;
 };
 
-// 🔥 NEW: Guard Types API Service
+// Guard Types API Service
 export const guardTypesService = {
   // Get all guard types for an agency
   getGuardTypes: async (agencyId: string): Promise<GuardType[]> => {
     try {
-      console.log("🔍 Fetching guard types for agency:", agencyId);
+      console.log("Fetching guard types for agency:", agencyId);
 
       const response = await authApi.get(`/settings/guard-types/${agencyId}`);
 
-      console.log("✅ Guard types API response:", response.data);
+      console.log("Guard types API response:", response.data);
 
-      // 🔥 FIX: Extract data from the nested response structure
+      // Extract data from the nested response structure
       const guardTypes = response.data?.data || response.data || [];
 
-      console.log("✅ Guard types extracted:", guardTypes);
+      console.log("Guard types extracted:", guardTypes);
       return guardTypes as GuardType[];
     } catch (error: any) {
-      console.error("❌ Failed to fetch guard types:", error);
+      console.error("Failed to fetch guard types:", error);
 
       if (error.response?.status === 401) {
         throw new Error("Unauthorized. Please login again.");
@@ -478,10 +475,10 @@ export const guardTypesService = {
   },
 };
 
-// 🔥 UPDATED: GuardType interface to match actual API response
+// GuardType interface to match actual API response
 interface GuardType {
   id: string;
-  typeName: string; // 🔥 FIX: Changed from 'name' to 'typeName'
+  typeName: string; // Changed from 'name' to 'typeName'
   agencyId: string;
   createdAt: string;
   updatedAt: string;
@@ -511,7 +508,7 @@ export const guardService = {
       const multipartData = transformToFormData(apiRequest);
 
       // Log the FormData contents for debugging
-      console.log("📤 Sending multipart form data:");
+      console.log("Sending multipart form data:");
       for (const [key, value] of multipartData.entries()) {
         if (value instanceof File) {
           console.log(`  ${key}: File(${value.name}, ${value.size} bytes, ${value.type})`);
@@ -521,16 +518,16 @@ export const guardService = {
       }
 
       // Log important fields
-      console.log("🔥 Key API fields:", {
+      console.log("Key API fields:", {
         userType: apiRequest.userType,
         status: apiRequest.status,
-        guardType: apiRequest.guardType, // NEW
-        employment: apiRequest.employment, // NEW
+        guardType: apiRequest.guardType,
+        employment: apiRequest.employment,
         agencyId: agencyId,
         hasPhoto: !!apiRequest.photo,
         photoName: apiRequest.photo?.name,
         documentsCount: apiRequest.documents?.length || 0,
-        filesArrayOmitted: true, // NEW - indicating we're not sending files
+        filesArrayOmitted: true,
         noFileUploads: true,
       });
 
@@ -547,13 +544,13 @@ export const guardService = {
 
       return response.data;
     } catch (error: any) {
-      console.error("❌ Guard creation error:", error);
+      console.error("Guard creation error:", error);
 
-      // Enhanced error handling
+      // Enhanced error handling with specific phone number duplicate detection
       if (error.response) {
         const errorData = error.response.data;
 
-        console.error("🔍 Detailed error response:", {
+        console.error("Detailed error response:", {
           status: error.response.status,
           statusText: error.response.statusText,
           data: errorData,
@@ -570,7 +567,23 @@ export const guardService = {
             let errorMessage = "Invalid data provided. Please check all fields.";
             if (errorData?.message) {
               if (typeof errorData.message === "string") {
-                errorMessage = errorData.message;
+                // Check for phone number duplicate error
+                if (
+                  errorData.message.toLowerCase().includes("phone") &&
+                  (errorData.message.toLowerCase().includes("already") ||
+                    errorData.message.toLowerCase().includes("exists"))
+                ) {
+                  errorMessage =
+                    "This phone number is already registered with another guard. Please use a different number.";
+                } else if (
+                  errorData.message.toLowerCase().includes("email") &&
+                  (errorData.message.toLowerCase().includes("already") ||
+                    errorData.message.toLowerCase().includes("exists"))
+                ) {
+                  errorMessage = "This email address is already registered. Please use a different email.";
+                } else {
+                  errorMessage = errorData.message;
+                }
               } else if (Array.isArray(errorData.message)) {
                 errorMessage = `Validation errors: ${errorData.message.join(", ")}`;
               }
@@ -581,7 +594,16 @@ export const guardService = {
           case 403:
             throw new Error("You do not have permission to create guards.");
           case 409:
-            throw new Error("A guard with this information already exists.");
+            // Handle duplicate conflicts specifically
+            if (errorData?.message?.toLowerCase().includes("phone")) {
+              throw new Error(
+                "This phone number is already registered with another guard. Please use a different number."
+              );
+            } else if (errorData?.message?.toLowerCase().includes("email")) {
+              throw new Error("This email address is already registered. Please use a different email.");
+            } else {
+              throw new Error("A guard with this information already exists.");
+            }
           case 422:
             throw new Error("Invalid data format. Please check your input.");
           case 500:
@@ -649,7 +671,7 @@ export const guardService = {
       errors.push("Permanent address pincode is required");
     }
 
-    // Employment validations - 🔥 NEW: Add guardType validation
+    // Employment validations
     if (!formData.employmentDetails.companyId?.trim()) {
       errors.push("Company ID is required");
     }
@@ -674,15 +696,20 @@ export const guardService = {
       errors.push("Emergency contact number must be a valid Indian number");
     }
 
-    // Document validation - ensure mandatory documents are selected
+    // Document validation - UPDATED: Only require at least one mandatory document
     const selectedDocuments = formData.documentVerification.documents.filter((doc) => doc.isSelected);
-    const mandatoryDocTypes = ["aadhaar", "birth", "education", "pan"]; // PAN is now mandatory
+
+    if (selectedDocuments.length === 0) {
+      errors.push("Please select at least one document for verification");
+      return errors; // Return early if no documents selected
+    }
+
+    // Check if at least one mandatory document is selected
+    const mandatoryDocTypes = ["aadhaar", "pan"]; // Only these are truly mandatory
     const selectedMandatoryDocs = selectedDocuments.filter((doc) => mandatoryDocTypes.includes(doc.type));
 
-    if (selectedMandatoryDocs.length < mandatoryDocTypes.length) {
-      errors.push(
-        "All mandatory documents (Aadhaar Card, Birth Certificate, Education Certificate, and PAN Card) must be selected"
-      );
+    if (selectedMandatoryDocs.length === 0) {
+      errors.push("Please select at least one mandatory document (Aadhaar Card or PAN Card)");
     }
 
     return errors;

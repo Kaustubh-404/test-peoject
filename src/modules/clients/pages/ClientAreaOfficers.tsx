@@ -6,13 +6,14 @@ import KeyboardArrowRightIcon from "@mui/icons-material/KeyboardArrowRight";
 import { Box, Button, IconButton, MenuItem, Select, Typography } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useGetClientAreaOfficers } from "../apis/hooks/useGetClientGuards";
 import { useGetClientSites } from "../apis/hooks/useGetClientSites";
 import { AreaOfficerColumns } from "../columns/ClientAreaOfficersColumns";
 import { useClientContext } from "../context/ClientContext";
 
 export default function ClientAreaOfficers() {
+  const navigate = useNavigate();
   const [pageSize, setPageSize] = useState(5);
   const [currentPage, setCurrentPage] = useState(0);
   const { clientId } = useParams();
@@ -71,6 +72,11 @@ export default function ClientAreaOfficers() {
     setCurrentPage(page - 1);
   };
 
+  const handleRowClick = (params: any) => {
+    const guardName = params.row.name; // Using guard name
+    navigate(`/officers/${guardName}/performance`);
+  };
+
   const handlePageSizeChange = (event: any) => {
     setPageSize(Number(event.target.value));
     setCurrentPage(0);
@@ -115,8 +121,9 @@ export default function ClientAreaOfficers() {
           rows={filteredAreaOfficers}
           columns={AreaOfficerColumns}
           hideFooter={true}
-          disableRowSelectionOnClick
+          disableRowSelectionOnClick={false}
           hideFooterSelectedRowCount
+          onRowClick={handleRowClick}
           sx={{
             borderRadius: "8px",
             mt: 2,

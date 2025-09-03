@@ -9,12 +9,12 @@ import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCreateSite } from "../apis/hooks/useCreateClientSite";
-import AddClientSuccess from "../components/forms/add_client/AddClientSuccess";
 import ClientSiteInfoForm from "../components/forms/add_client_site/ClientSiteInfoForm";
 import GuardSelection from "../components/forms/add_client_site/GuardSelectionForm";
 import SiteLocationForm from "../components/forms/add_client_site/SiteLocationForm";
 import SitePostForm from "../components/forms/add_client_site/SitePostForm";
 import { transformClientSiteToAPI, type ClientSite } from "../components/forms/add_client_site/types";
+import { DraftModal } from "../components/modals/DraftModal";
 import { useClientContext } from "../context/ClientContext";
 
 const progressSteps: Step[] = [
@@ -27,6 +27,8 @@ const progressSteps: Step[] = [
 export default function AddClientSite() {
   const [currentStep, setCurrentStep] = useState(1);
   const [disabledSteps, setDisabledSteps] = useState<number[]>([]);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
   const { clientId } = useParams<{ clientId: string }>();
   const { clientDetails } = useClientContext();
   const navigate = useNavigate();
@@ -101,11 +103,67 @@ export default function AddClientSite() {
     },
   });
 
-  const { handleSubmit, trigger } = methods;
-
   const createSiteMutation = useCreateSite(() => {
-    setCurrentStep(5);
+    console.log("Site created successfully");
+    localStorage.removeItem("clientSiteDraft");
+    navigate(`/clients/${clientId}/sites`);
   });
+
+  const { handleSubmit, trigger, reset } = methods;
+
+  useEffect(() => {
+    const loadDraft = () => {
+      try {
+        const savedDraft = localStorage.getItem("clientSiteDraft");
+        if (savedDraft) {
+          const parsedDraft = JSON.parse(savedDraft);
+          setDraftData(parsedDraft);
+          setDraftModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Error loading draft:", error);
+        localStorage.removeItem("clientSiteDraft");
+      }
+    };
+
+    loadDraft();
+  }, [reset]);
+
+  const handleContinueDraft = () => {
+    try {
+      if (draftData) {
+        reset(draftData);
+        setCurrentStep(draftData.currentStep || 1);
+      }
+      setDraftModalOpen(false);
+      setDraftData(null);
+    } catch (error) {
+      console.error("Error loading draft:", error);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem("clientSiteDraft");
+    setDraftModalOpen(false);
+    setDraftData(null);
+  };
+
+  const handleSaveDraft = async () => {
+    try {
+      const formData = methods.getValues();
+      const draftData = {
+        ...formData,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem("clientSiteDraft", JSON.stringify(draftData));
+      alert("Draft saved successfully!");
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      alert("Failed to save draft. Please try again.");
+    }
+  };
 
   const validateStep = async (step: number) => {
     let fieldsToValidate: string[] = [];
@@ -215,32 +273,6 @@ export default function AddClientSite() {
     }
   };
 
-  const handleSaveDraft = () => {
-    handleSubmit((data) => {
-      console.log("Saving draft:", data);
-      localStorage.setItem("siteDraft", JSON.stringify(data));
-      alert("Draft saved successfully!");
-    })();
-  };
-
-  useEffect(() => {
-    const savedDraft = localStorage.getItem("siteDraft");
-    if (savedDraft) {
-      try {
-        const draftData = JSON.parse(savedDraft);
-        const confirmLoad = window.confirm("Found a saved draft. Would you like to load it?");
-        if (confirmLoad) {
-          Object.keys(draftData).forEach((key) => {
-            methods.setValue(key as any, draftData[key]);
-          });
-          localStorage.removeItem("siteDraft");
-        }
-      } catch (error) {
-        console.error("Error loading draft:", error);
-      }
-    }
-  }, [methods]);
-
   return (
     <div className="h-full">
       <div className="flex flex-row justify-between">
@@ -315,10 +347,7 @@ export default function AddClientSite() {
         )}
       </div>
 
-      <div
-        id="container"
-        className={`bg-[#F1F7FE] mt-2 rounded-xl p-4 flex flex-col ${currentStep === 5 ? "h-[calc(100%-55px)]" : ""}`}
-      >
+      <div id="container" className="bg-[#F1F7FE] mt-2 rounded-xl p-4 flex flex-col">
         {/* Client Info Header */}
         <div className="bg-white flex flex-row px-4 py-2 w-fit rounded-xl gap-6 items-center mx-auto mb-4">
           <Avatar src={clientDetails?.clientLogo!} alt="Logo" className="h-10 w-10" />
@@ -331,21 +360,16 @@ export default function AddClientSite() {
         </div>
 
         {/* Progress Stepper */}
-        {currentStep < 5 && (
-          <ProgressStepper
-            currentStep={currentStep}
-            steps={progressSteps}
-            onStepClick={handleStepClick}
-            disabledSteps={disabledSteps}
-          />
-        )}
+        <ProgressStepper
+          currentStep={currentStep}
+          steps={progressSteps}
+          onStepClick={handleStepClick}
+          disabledSteps={disabledSteps}
+        />
 
         {/* Form Content */}
         <FormProvider {...methods}>
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            className={`flex-1 flex flex-col ${currentStep === 5 ? "h-full" : ""}`}
-          >
+          <form onSubmit={handleSubmit(onSubmit)} className="flex-1 flex flex-col">
             {currentStep === 1 && <ClientSiteInfoForm />}
 
             {currentStep === 2 && <SiteLocationForm />}
@@ -354,31 +378,27 @@ export default function AddClientSite() {
 
             {currentStep === 4 && <GuardSelection />}
 
-            {currentStep === 5 && <AddClientSuccess clientId={clientDetails?.id!} />}
-
             {/* Navigation Buttons */}
-            {currentStep < 5 && (
-              <div className="flex flex-row mt-4 w-full justify-end gap-4">
-                {currentStep > 1 && (
-                  <Button variant="outlined" onClick={prevStep}>
-                    Previous
-                  </Button>
-                )}
+            <div className="flex flex-row mt-4 w-full justify-end gap-4">
+              {currentStep > 1 && (
+                <Button variant="outlined" onClick={prevStep}>
+                  Previous
+                </Button>
+              )}
 
-                {currentStep < 4 && (
-                  <Button variant="contained" onClick={nextStep}>
-                    <ArrowForwardIosIcon sx={{ fontSize: "16px" }} />
-                    Next
-                  </Button>
-                )}
+              {currentStep < 4 && (
+                <Button variant="contained" onClick={nextStep}>
+                  <ArrowForwardIosIcon sx={{ fontSize: "16px" }} />
+                  Next
+                </Button>
+              )}
 
-                {currentStep === 4 && (
-                  <Button variant="contained" color="success" type="submit" disabled={createSiteMutation.isPending}>
-                    {createSiteMutation.isPending ? "Submitting..." : "Submit"}
-                  </Button>
-                )}
-              </div>
-            )}
+              {currentStep === 4 && (
+                <Button variant="contained" color="success" type="submit" disabled={createSiteMutation.isPending}>
+                  {createSiteMutation.isPending ? "Submitting..." : "Submit"}
+                </Button>
+              )}
+            </div>
           </form>
         </FormProvider>
 
@@ -391,6 +411,15 @@ export default function AddClientSite() {
           </div>
         )}
       </div>
+
+      {/* Draft Modal */}
+      <DraftModal
+        open={draftModalOpen}
+        onClose={() => setDraftModalOpen(false)}
+        onContinue={handleContinueDraft}
+        onDiscard={handleDiscardDraft}
+        savedAt={draftData?.savedAt || ""}
+      />
     </div>
   );
 }

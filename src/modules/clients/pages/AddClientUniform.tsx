@@ -3,11 +3,12 @@ import CheckOutlinedIcon from "@mui/icons-material/CheckOutlined";
 import DeleteOutlineOutlinedIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import DraftsOutlinedIcon from "@mui/icons-material/DraftsOutlined";
 import { Button, Typography } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormProvider, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCreateClientUniform } from "../apis/hooks/useCreateClientUniform";
 import ClientUniformDetails from "../components/forms/add_client_uniform/ClientUniformDetails";
+import { DraftModal } from "../components/modals/DraftModal";
 
 interface ClientUniformForm {
   uniformName: string;
@@ -21,6 +22,8 @@ interface ClientUniformForm {
 
 export default function AddClientUniform() {
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
   const methods = useForm<ClientUniformForm>({
@@ -38,6 +41,7 @@ export default function AddClientUniform() {
 
   const createUniformMutation = useCreateClientUniform((data) => {
     console.log("Uniform created successfully:", data);
+    localStorage.removeItem("clientUniformDraft");
     setIsSubmitted(true);
   });
 
@@ -46,7 +50,46 @@ export default function AddClientUniform() {
     formState: {},
     getValues,
     watch,
+    reset,
   } = methods;
+
+  useEffect(() => {
+    const loadDraft = () => {
+      try {
+        const savedDraft = localStorage.getItem("clientUniformDraft");
+        if (savedDraft) {
+          const parsedDraft = JSON.parse(savedDraft);
+          setDraftData(parsedDraft);
+          setDraftModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Error loading draft:", error);
+        localStorage.removeItem("clientUniformDraft");
+      }
+    };
+
+    loadDraft();
+  }, [reset]);
+
+  const handleContinueDraft = () => {
+    try {
+      if (draftData) {
+        const { topPhotos, bottomPhotos, accessoriesPhotos, ...restData } = draftData;
+        reset(restData);
+        console.log("Draft loaded - Note: Photos need to be re-uploaded");
+      }
+      setDraftModalOpen(false);
+      setDraftData(null);
+    } catch (error) {
+      console.error("Error loading draft:", error);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem("clientUniformDraft");
+    setDraftModalOpen(false);
+    setDraftData(null);
+  };
 
   const uniformName = watch("uniformName");
   const top = watch("top");
@@ -102,10 +145,35 @@ export default function AddClientUniform() {
     }
   };
 
-  const handleSaveDraft = () => {
-    const data = getValues();
-    console.log("Saving draft:", data);
-    alert("Draft saved successfully!");
+  const handleSaveDraft = async () => {
+    try {
+      const formData = getValues();
+      const draftData = {
+        ...formData,
+        topPhotos: formData.topPhotos
+          ? formData.topPhotos.map((photo: any) =>
+              photo instanceof File ? { name: photo.name, size: photo.size, type: photo.type } : photo
+            )
+          : [],
+        bottomPhotos: formData.bottomPhotos
+          ? formData.bottomPhotos.map((photo: any) =>
+              photo instanceof File ? { name: photo.name, size: photo.size, type: photo.type } : photo
+            )
+          : [],
+        accessoriesPhotos: formData.accessoriesPhotos
+          ? formData.accessoriesPhotos.map((photo: any) =>
+              photo instanceof File ? { name: photo.name, size: photo.size, type: photo.type } : photo
+            )
+          : [],
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem("clientUniformDraft", JSON.stringify(draftData));
+      alert("Draft saved successfully!");
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      alert("Failed to save draft. Please try again.");
+    }
   };
 
   return (
@@ -204,6 +272,14 @@ export default function AddClientUniform() {
           )}
         </FormProvider>
       </div>
+
+      <DraftModal
+        open={draftModalOpen}
+        onClose={() => setDraftModalOpen(false)}
+        onContinue={handleContinueDraft}
+        onDiscard={handleDiscardDraft}
+        savedAt={draftData?.savedAt || ""}
+      />
     </div>
   );
 }

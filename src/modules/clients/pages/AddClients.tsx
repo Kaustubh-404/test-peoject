@@ -11,6 +11,7 @@ import { useCreateClient } from "../apis/hooks/useCreateClient";
 import AddClientSuccess from "../components/forms/add_client/AddClientSuccess";
 import ClientInfoForm from "../components/forms/add_client/ClientInfoForm";
 import ContactDetailsForm from "../components/forms/add_client/ContactDetailsForm";
+import { DraftModal } from "../components/modals/DraftModal";
 import type { ClientFormData } from "../types";
 
 const progressSteps: Step[] = [
@@ -22,11 +23,14 @@ export default function AddClients() {
   const [currentStep, setCurrentStep] = useState(1);
   const [clientLogo, setClientLogo] = useState<File | null>(null);
   const [disabledSteps, setDisabledSteps] = useState<number[]>([]);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftData, setDraftData] = useState<any>(null);
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const agencyId = user.agencyId || "";
   const navigate = useNavigate();
   const createClientMutation = useCreateClient(() => {
     console.log("Client created successfully:");
+    localStorage.removeItem("clientDraft");
     setCurrentStep(3);
   });
   const responseData = createClientMutation.data;
@@ -64,7 +68,50 @@ export default function AddClients() {
       },
     },
   });
-  const { handleSubmit, trigger, watch } = methods;
+  const { handleSubmit, trigger, watch, reset } = methods;
+
+  useEffect(() => {
+    const loadDraft = () => {
+      try {
+        const savedDraft = localStorage.getItem("clientDraft");
+        if (savedDraft) {
+          const parsedDraft = JSON.parse(savedDraft);
+          setDraftData(parsedDraft);
+          setDraftModalOpen(true);
+        }
+      } catch (error) {
+        console.error("Error loading draft:", error);
+        localStorage.removeItem("clientDraft");
+      }
+    };
+
+    loadDraft();
+  }, [reset]);
+
+  const handleContinueDraft = () => {
+    try {
+      if (draftData) {
+        const { clientLogo: logoData, ...restData } = draftData;
+        reset(restData);
+        setCurrentStep(draftData.currentStep || 1);
+
+        if (logoData) {
+          console.log("Draft had logo info:", logoData.name);
+          setClientLogo(null);
+        }
+      }
+      setDraftModalOpen(false);
+      setDraftData(null);
+    } catch (error) {
+      console.error("Error loading draft:", error);
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem("clientDraft");
+    setDraftModalOpen(false);
+    setDraftData(null);
+  };
 
   useEffect(() => {
     const logo = watch("clientLogo");
@@ -151,12 +198,28 @@ export default function AddClients() {
     }
   };
 
-  const handleSaveDraft = () => {
-    handleSubmit((data: ClientFormData) => {
-      console.log("Saving draft:", data);
-      localStorage.setItem("clientDraft", JSON.stringify(data));
+  const handleSaveDraft = async () => {
+    try {
+      const formData = methods.getValues();
+      const draftData = {
+        ...formData,
+        clientLogo: clientLogo
+          ? {
+              name: clientLogo.name,
+              size: clientLogo.size,
+              type: clientLogo.type,
+            }
+          : null,
+        currentStep,
+        savedAt: new Date().toISOString(),
+      };
+
+      localStorage.setItem("clientDraft", JSON.stringify(draftData));
       alert("Draft saved successfully!");
-    })();
+    } catch (error) {
+      console.error("Error saving draft:", error);
+      alert("Failed to save draft. Please try again.");
+    }
   };
 
   const handleLogoChange = (file: File | null) => {
@@ -291,6 +354,14 @@ export default function AddClients() {
           </form>
         </FormProvider>
       </div>
+
+      <DraftModal
+        open={draftModalOpen}
+        onClose={() => setDraftModalOpen(false)}
+        onContinue={handleContinueDraft}
+        onDiscard={handleDiscardDraft}
+        savedAt={draftData?.savedAt || ""}
+      />
     </div>
   );
 }

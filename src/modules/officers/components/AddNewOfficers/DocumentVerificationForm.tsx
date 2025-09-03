@@ -19,7 +19,7 @@ const DOCUMENT_TYPES: DocumentType[] = [
   { type: "aadhaar", label: "Aadhaar Card", required: true },
   { type: "birth", label: "Birth Certificate", required: true },
   { type: "education", label: "Education Certificate/Degree", required: true },
-  { type: "pan", label: "PAN Card", required: true }, // Made PAN Card mandatory like Guards
+  { type: "pan", label: "PAN Card", required: true },
   { type: "driving", label: "Driving License", required: false },
   { type: "passport", label: "Passport", required: false },
 ];
@@ -48,17 +48,15 @@ const OfficerDocumentVerificationForm: React.FC<OfficerDocumentVerificationFormP
     }
   }, [documents, setValue]);
 
-  // Handle checkbox change - Allow proper toggling on/off
+  // Handle checkbox change
   const handleCheckboxChange = (docType: string, checked: boolean) => {
     const updatedDocuments = documents.map((doc) => (doc.type === docType ? { ...doc, isSelected: checked } : doc));
 
     setDocuments(updatedDocuments);
 
     if (setValue) {
-      // Update the documents array
       setValue("documentVerification.documents", updatedDocuments);
-      // Trigger validation for the required document check
-      setValue("documentVerification.hasRequiredDocument", hasRequiredDocument());
+      setValue("documentVerification.hasRequiredDocument", hasRequiredDocument(updatedDocuments));
     }
   };
 
@@ -68,14 +66,8 @@ const OfficerDocumentVerificationForm: React.FC<OfficerDocumentVerificationFormP
   };
 
   // Check if at least one required document is selected
-  const hasRequiredDocument = () => {
-    return documents.some((doc) => doc.isSelected && DOCUMENT_TYPES.find((dt) => dt.type === doc.type)?.required);
-  };
-
-  // Check if all mandatory documents are selected
-  const hasMandatoryDocuments = () => {
-    const mandatoryDocTypes = DOCUMENT_TYPES.filter((dt) => dt.required).map((dt) => dt.type);
-    return mandatoryDocTypes.every((docType) => documents.find((doc) => doc.type === docType)?.isSelected);
+  const hasRequiredDocument = (docs = documents) => {
+    return docs.some((doc) => doc.isSelected && DOCUMENT_TYPES.find((dt) => dt.type === doc.type)?.required);
   };
 
   // Custom checkbox style
@@ -153,8 +145,8 @@ const OfficerDocumentVerificationForm: React.FC<OfficerDocumentVerificationFormP
               mb: 1,
             }}
           >
-            Which Of The Following Documents Have Been Verified During The Officer's Recruitment? (Select All That
-            Apply)
+            Which Of The Following Documents Have Been Verified During The Officer's Recruitment? (Select At Least One
+            Mandatory Document)
           </Typography>
           <Divider />
         </Box>
@@ -186,43 +178,13 @@ const OfficerDocumentVerificationForm: React.FC<OfficerDocumentVerificationFormP
                   sx={{ margin: 0, alignItems: "flex-start" }}
                 />
 
-                {/* Verification status indicator */}
-                {document?.isSelected && (
-                  <Box sx={{ ml: 3, display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor: "#4CAF50",
-                      }}
-                    />
-                    <Typography sx={{ fontSize: "11px", color: "#4CAF50", fontFamily: "Mukta" }}>
-                      Marked as verified - {docType.label}
-                    </Typography>
-                  </Box>
-                )}
+                {/* Removed the green verification status indicator */}
               </Box>
             );
           })}
         </Box>
 
-        {/* Validation Error for missing mandatory documents */}
-        {!hasMandatoryDocuments() && (
-          <FormHelperText
-            error
-            sx={{
-              fontFamily: "Mukta",
-              fontSize: "12px",
-              mt: 1,
-              ml: 1,
-            }}
-          >
-            Please select all mandatory documents (marked with *)
-          </FormHelperText>
-        )}
-
-        {/* Validation Error for at least one document */}
+        {/* Validation Error - Updated message */}
         {!hasRequiredDocument() && (
           <FormHelperText
             error
@@ -238,16 +200,13 @@ const OfficerDocumentVerificationForm: React.FC<OfficerDocumentVerificationFormP
         )}
       </Box>
 
-      {/* Hidden input for form validation */}
+      {/* Hidden input for form validation - Updated validation logic */}
       <input
         type="hidden"
         {...register("documentVerification.hasRequiredDocument", {
           validate: () => {
             if (!hasRequiredDocument()) {
               return "Please select at least one mandatory document (marked with *)";
-            }
-            if (!hasMandatoryDocuments()) {
-              return "Please select all mandatory documents (marked with *)";
             }
             return true;
           },

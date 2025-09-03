@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { getClientTasks as getTasks } from "../../../clients/apis/services/tasks";
 import {
   getAreaOfficers,
   getDashboardOverview,
+  getTasks as getDashboardTasks,
   getIncidentReports,
   getLateUniformSummary,
   getLivelinessAlerts,
@@ -13,6 +13,7 @@ export const useDashboardOverview = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -21,6 +22,7 @@ export const useDashboardOverview = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["dashboardOverview", params],
@@ -36,6 +38,7 @@ export const useLivelinessAlerts = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -44,6 +47,7 @@ export const useLivelinessAlerts = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["livelinessAlerts", params],
@@ -59,6 +63,7 @@ export const useLateUniformSummary = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -67,6 +72,7 @@ export const useLateUniformSummary = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["lateUniformSummary", params],
@@ -82,6 +88,7 @@ export const useShiftPerformanceIssues = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -90,6 +97,7 @@ export const useShiftPerformanceIssues = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["shiftPerformanceIssues", params],
@@ -105,6 +113,7 @@ export const useAreaOfficers = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -113,6 +122,7 @@ export const useAreaOfficers = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["areaOfficers", params],
@@ -128,6 +138,7 @@ export const useIncidentReports = (params: {
   opAgencyId: string;
   clientId?: string;
   dutyDate?: string;
+  createdAt?: object;
   fromDate?: string;
   toDate?: string;
   page?: number;
@@ -136,6 +147,7 @@ export const useIncidentReports = (params: {
   sortOrder?: string;
   userTypeFilter?: string;
   incidentStatus?: string;
+  taskStatus?: string;
 }) => {
   return useQuery({
     queryKey: ["incidentReports", params],
@@ -147,11 +159,27 @@ export const useIncidentReports = (params: {
   });
 };
 
-export const useAreaOfficerTasks = (params: { opAgencyId: string; page?: number; limit?: number }) => {
+export const useAreaOfficerTasks = (params: {
+  opAgencyId: string;
+  clientId?: string;
+  siteId?: string;
+  areaOfficerId?: string;
+  status?: string;
+  deadlineFrom?: string;
+  deadlineTo?: string;
+  page?: number;
+  limit?: number;
+}) => {
   return useQuery({
     queryKey: ["areaOfficerTasks", params],
     queryFn: () =>
-      getTasks({
+      getDashboardTasks({
+        clientId: params.clientId,
+        siteId: params.siteId,
+        areaOfficerId: params.areaOfficerId,
+        status: params.status,
+        deadlineFrom: params.deadlineFrom,
+        deadlineTo: params.deadlineTo,
         page: params.page,
         limit: params.limit,
       }),

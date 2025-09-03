@@ -33,6 +33,7 @@ export default function ClientSites() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [minGuardCount, setMinGuardCount] = useState<number | "">("");
   const [maxGuardCount, setMaxGuardCount] = useState<number | "">("");
+  const [hasDraft, setHasDraft] = useState(false);
 
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const navigate = useNavigate();
@@ -79,6 +80,21 @@ export default function ClientSites() {
   useEffect(() => {
     setCurrentPage(0);
   }, [pageSize, filteredRows]);
+
+  useEffect(() => {
+    const checkForDraft = () => {
+      const clientSiteDraft = localStorage.getItem("clientSiteDraft");
+      setHasDraft(!!clientSiteDraft);
+    };
+
+    checkForDraft();
+
+    // Check for draft changes when component gains focus
+    const handleFocus = () => checkForDraft();
+    window.addEventListener("focus", handleFocus);
+
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   const applyFilters = () => {
     let result = [...rows];
@@ -144,6 +160,12 @@ export default function ClientSites() {
     setCurrentPage(0);
   };
 
+  const handleDraftClick = () => {
+    if (hasDraft) {
+      navigate(`/clients/${clientId}/add-client-site`);
+    }
+  };
+
   return (
     <div className="flex flex-col w-full">
       <div className="flex flex-row justify-between mb-4">
@@ -193,7 +215,12 @@ export default function ClientSites() {
               Add New Site
             </Typography>
           </Button>
-          <Button variant="contained">
+          <Button
+            variant="contained"
+            onClick={handleDraftClick}
+            disabled={!hasDraft}
+            color={hasDraft ? "primary" : "inherit"}
+          >
             <DraftsOutlinedIcon
               sx={{
                 typography: {
@@ -208,7 +235,7 @@ export default function ClientSites() {
                 },
               }}
             >
-              Drafts
+              Drafts {hasDraft ? "(1)" : ""}
             </Typography>
           </Button>
         </div>

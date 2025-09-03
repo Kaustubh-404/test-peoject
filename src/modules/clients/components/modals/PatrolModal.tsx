@@ -25,6 +25,118 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { useCreatePatrolRoute, useUpdatePatrolRoute } from "../../apis/hooks/useUpdatePatrolRoute";
 import type { ClientSite } from "../forms/add_client_site/types";
 
+const extractGPSFromEXIF = (file: File): Promise<{ latitude: number | null; longitude: number | null }> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const arrayBuffer = e.target?.result as ArrayBuffer;
+        const view = new DataView(arrayBuffer);
+        if (view.getUint16(0) !== 0xffd8) {
+          resolve({ latitude: null, longitude: null });
+          return;
+        }
+        let offset = 2;
+        let marker = 0;
+        while (offset < view.byteLength) {
+          marker = view.getUint16(offset);
+          if (marker === 0xffe1) {
+            const exifHeader = new Uint8Array(arrayBuffer, offset + 4, 4);
+            if (String.fromCharCode(...exifHeader) === "Exif") {
+              const tiffOffset = offset + 10;
+              const tiffView = new DataView(arrayBuffer, tiffOffset);
+              const byteOrder = tiffView.getUint16(0);
+              const littleEndian = byteOrder === 0x4949;
+              const ifdOffset = littleEndian ? tiffView.getUint32(4, true) : tiffView.getUint32(4, false);
+              const gpsData = parseGPSFromIFD(new DataView(arrayBuffer, tiffOffset), ifdOffset, littleEndian);
+              if (gpsData.latitude !== null && gpsData.longitude !== null) {
+                resolve(gpsData);
+                return;
+              }
+            }
+          }
+          if (marker === 0xffda) break;
+          const segmentLength = view.getUint16(offset + 2);
+          offset += 2 + segmentLength;
+        }
+        resolve({ latitude: null, longitude: null });
+      } catch (error) {
+        resolve({ latitude: null, longitude: null });
+      }
+    };
+    reader.onerror = () => {
+      resolve({ latitude: null, longitude: null });
+    };
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+const parseGPSFromIFD = (
+  view: DataView,
+  ifdOffset: number,
+  littleEndian: boolean
+): { latitude: number | null; longitude: number | null } => {
+  try {
+    const numEntries = littleEndian ? view.getUint16(ifdOffset, true) : view.getUint16(ifdOffset, false);
+    let offset = ifdOffset + 2;
+    let gpsIFDOffset = 0;
+    for (let i = 0; i < numEntries; i++) {
+      const tag = littleEndian ? view.getUint16(offset, true) : view.getUint16(offset, false);
+      if (tag === 0x8825) {
+        const valueOffset = littleEndian ? view.getUint32(offset + 8, true) : view.getUint32(offset + 8, false);
+        gpsIFDOffset = valueOffset;
+        break;
+      }
+      offset += 12;
+    }
+    if (gpsIFDOffset === 0) {
+      return { latitude: null, longitude: null };
+    }
+    const gpsNumEntries = littleEndian ? view.getUint16(gpsIFDOffset, true) : view.getUint16(gpsIFDOffset, false);
+    let gpsOffset = gpsIFDOffset + 2;
+    let latitude = null;
+    let longitude = null;
+    let latRef = "";
+    let lonRef = "";
+    for (let i = 0; i < gpsNumEntries; i++) {
+      const tag = littleEndian ? view.getUint16(gpsOffset, true) : view.getUint16(gpsOffset, false);
+      const type = littleEndian ? view.getUint16(gpsOffset + 2, true) : view.getUint16(gpsOffset + 2, false);
+      const valueOffset = littleEndian ? view.getUint32(gpsOffset + 8, true) : view.getUint32(gpsOffset + 8, false);
+      if (tag === 1 && type === 2) {
+        latRef = String.fromCharCode(view.getUint8(valueOffset));
+      } else if (tag === 2 && type === 5) {
+        const lat1 = getRational(view, valueOffset, littleEndian);
+        const lat2 = getRational(view, valueOffset + 8, littleEndian);
+        const lat3 = getRational(view, valueOffset + 16, littleEndian);
+        latitude = lat1 + lat2 / 60 + lat3 / 3600;
+      } else if (tag === 3 && type === 2) {
+        lonRef = String.fromCharCode(view.getUint8(valueOffset));
+      } else if (tag === 4 && type === 5) {
+        const lon1 = getRational(view, valueOffset, littleEndian);
+        const lon2 = getRational(view, valueOffset + 8, littleEndian);
+        const lon3 = getRational(view, valueOffset + 16, littleEndian);
+        longitude = lon1 + lon2 / 60 + lon3 / 3600;
+      }
+      gpsOffset += 12;
+    }
+    if (latitude !== null && latRef === "S") {
+      latitude = -latitude;
+    }
+    if (longitude !== null && lonRef === "W") {
+      longitude = -longitude;
+    }
+    return { latitude, longitude };
+  } catch (error) {
+    return { latitude: null, longitude: null };
+  }
+};
+
+const getRational = (view: DataView, offset: number, littleEndian: boolean): number => {
+  const numerator = littleEndian ? view.getUint32(offset, true) : view.getUint32(offset, false);
+  const denominator = littleEndian ? view.getUint32(offset + 4, true) : view.getUint32(offset + 4, false);
+  return denominator !== 0 ? numerator / denominator : 0;
+};
+
 interface PatrolModalProps {
   open: boolean;
   onClose: () => void;
@@ -80,8 +192,8 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         qrCode: checkpoint.qrCodeUrl || "",
         photo: checkpoint.photoUrl || "",
         qrlocationImageUrl: checkpoint.qrlocationImageUrl || "",
-        latitude: checkpoint.latitude,
-        longitude: checkpoint.longitude,
+        latitude: checkpoint.latitude || null,
+        longitude: checkpoint.longitude || null,
       })) || [],
   });
 
@@ -94,7 +206,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
             routeCode: "",
             patrolFrequency: {
               type: "time",
-              hours: 1,
+              hours: 0,
               minutes: 0,
               numberOfPatrols: 1,
             },
@@ -207,7 +319,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     const currentRoute = watch(`patroling.patrolRouteDetails.${activeRouteIndex}`);
     if (currentRoute && !currentRoute.name && !currentRoute.routeCode) {
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.type`, "time");
-      setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 1);
+      setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.hours`, 0);
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.minutes`, 0);
       setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolFrequency.numberOfPatrols`, 1);
       setPatrolFrequency(false);
@@ -233,7 +345,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     });
   };
 
-  const handlePhotoUpload = (file: File | null, index: number) => {
+  const handlePhotoUpload = async (file: File | null, index: number) => {
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert("File size exceeds 10MB. Please choose a smaller file.");
@@ -244,7 +356,25 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         alert("Only JPEG, JPG, and PNG files are allowed.");
         return;
       }
+
+      try {
+        const gpsData = await extractGPSFromEXIF(file);
+        if (gpsData.latitude && gpsData.longitude) {
+          const currentCheckpoints = watch(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints`);
+          if (currentCheckpoints && currentCheckpoints[index]) {
+            const updatedCheckpoint = {
+              ...currentCheckpoints[index],
+              latitude: gpsData.latitude,
+              longitude: gpsData.longitude,
+            };
+            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}`, updatedCheckpoint);
+          }
+        }
+      } catch (error) {
+        console.error("Error extracting GPS from photo:", error);
+      }
     }
+
     setCheckpointFiles((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], photoFile: file };
@@ -252,7 +382,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     });
   };
 
-  const handleLocationUpload = (file: File | null, index: number) => {
+  const handleLocationUpload = async (file: File | null, index: number) => {
     if (file) {
       if (file.size > 10 * 1024 * 1024) {
         alert("File size exceeds 10MB. Please choose a smaller file.");
@@ -263,7 +393,25 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         alert("Only JPEG, JPG, and PNG files are allowed.");
         return;
       }
+
+      try {
+        const gpsData = await extractGPSFromEXIF(file);
+        if (gpsData.latitude && gpsData.longitude) {
+          const currentCheckpoints = watch(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints`);
+          if (currentCheckpoints && currentCheckpoints[index]) {
+            const updatedCheckpoint = {
+              ...currentCheckpoints[index],
+              latitude: gpsData.latitude,
+              longitude: gpsData.longitude,
+            };
+            setValue(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}`, updatedCheckpoint);
+          }
+        }
+      } catch (error) {
+        console.error("Error extracting GPS from QR location photo:", error);
+      }
     }
+
     setCheckpointFiles((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], locationFile: file };
@@ -367,8 +515,8 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
         routeData.patrolCheckpoints?.map((checkpoint: any) => ({
           id: checkpoint.id,
           checkType: (checkpoint.type === "qr code" ? "QR_CODE" : "PHOTO") as "QR_CODE" | "PHOTO",
-          latitude: parseFloat(checkpoint.latitude) || 0,
-          longitude: parseFloat(checkpoint.longitude) || 0,
+          latitude: checkpoint.latitude ? parseFloat(checkpoint.latitude.toString()) : 0,
+          longitude: checkpoint.longitude ? parseFloat(checkpoint.longitude.toString()) : 0,
         })) || [];
 
       const files: { [key: string]: File } = {};
@@ -470,7 +618,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
     const checkpoint = watch(`patroling.patrolRouteDetails.${activeRouteIndex}.patrolCheckpoints.${index}`) as any;
     const gpsCoordinate =
       checkpoint?.latitude && checkpoint?.longitude
-        ? `${checkpoint.latitude}, ${checkpoint.longitude}`
+        ? `${parseFloat(checkpoint.latitude).toFixed(6)}, ${parseFloat(checkpoint.longitude).toFixed(6)}`
         : "GPS coordinates not available";
     const qrCodeImage = checkpoint?.qrCode;
     const qrLocationImage = checkpoint?.qrlocationImageUrl;
@@ -566,7 +714,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                 <div className="w-[10vw] h-20">
                   <FileUpload
                     label="Checkpoint Photo"
-                    maxSize={2}
+                    maxSize={10}
                     acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handlePhotoUpload(file, index)}
                     placeholder="Upload Photo"
@@ -581,7 +729,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                 <div className="w-[10vw] h-20">
                   <FileUpload
                     label="QR Code Image"
-                    maxSize={2}
+                    maxSize={10}
                     acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handleQrUpload(file, index)}
                     placeholder="Upload QR Code"
@@ -592,7 +740,7 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                 <div className="w-[10vw] h-20">
                   <FileUpload
                     label="QR Location Photo"
-                    maxSize={2}
+                    maxSize={10}
                     acceptedFileTypes=".jpeg,.jpg,.png"
                     onFileChange={(file) => handleLocationUpload(file, index)}
                     placeholder="Upload Location Photo"
@@ -607,6 +755,9 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                 GPS Coordinate From {isPhotoType ? "Photo" : "QR Location"}
               </span>
               <span className="text-sm font-medium">{gpsCoordinate}</span>
+              {(!checkpoint?.latitude || !checkpoint?.longitude) && (
+                <span className="text-xs text-amber-600 mt-1">⚠️ No GPS data found in uploaded image</span>
+              )}
             </div>
             <div className="h-10 w-10 flex justify-center items-center bg-white rounded-full ml-2">
               <PinDropOutlinedIcon sx={{ color: "#2A77D5" }} />
@@ -734,8 +885,8 @@ export const PatrolModal: React.FC<PatrolModalProps> = ({ open, onClose, siteDat
                           register={register}
                           validation={{ required: "Hours is required" }}
                           options={Array.from({ length: 24 }, (_, i) => ({
-                            value: i + 1,
-                            label: `${i + 1} Hr${i + 1 > 1 ? "s" : ""}`,
+                            value: i,
+                            label: `${i} Hr${i !== 1 ? "s" : ""}`,
                           }))}
                           error={!!errors.patroling?.patrolRouteDetails?.[activeRouteIndex]?.patrolFrequency?.hours}
                           helperText={

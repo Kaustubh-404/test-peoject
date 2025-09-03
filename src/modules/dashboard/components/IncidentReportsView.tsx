@@ -126,8 +126,9 @@ export default function IncidentReportsView({ incidentReportsData, isLoading, er
       </div>
 
       <div className="flex-1 overflow-auto">
-        <div className="grid grid-cols-3 gap-4 px-4 py-3 bg-gray-50 rounded-t-lg border-b">
+        <div className="grid grid-cols-4 gap-4 px-4 py-3 bg-gray-50 rounded-t-lg border-b">
           <div className="text-gray-600 font-semibold text-sm">INCIDENT ID</div>
+          <div className="text-gray-600 font-semibold text-sm">CLIENT NAME</div>
           <div className="text-gray-600 font-semibold text-sm">SITE NAME</div>
           <div className="text-gray-600 font-semibold text-sm">
             {activeTab === "open" ? "LATEST ALERT" : "CLOSED ON"}
@@ -140,8 +141,9 @@ export default function IncidentReportsView({ incidentReportsData, isLoading, er
               key={incident.incidentId}
               className="border border-gray-200 bg-white rounded-lg shadow-sm overflow-hidden"
             >
-              <div className="grid grid-cols-3 gap-4 px-4 py-3 items-center">
+              <div className="grid grid-cols-4 gap-4 px-4 py-3 items-center">
                 <div className="text-gray-800 font-medium">{incident.incidentId}</div>
+                <div className="text-gray-800 font-medium">{incident.clientName}</div>
                 <div className="text-gray-800 font-medium">{incident.siteName}</div>
                 <div className="text-gray-800 font-medium">
                   <div>{new Date(incident.latestAlert).toLocaleDateString("en-GB")}</div>

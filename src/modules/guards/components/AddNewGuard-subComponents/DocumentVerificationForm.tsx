@@ -15,11 +15,12 @@ interface DocumentType {
   required: boolean;
 }
 
+// 🔥 UPDATED: Make only some documents required, not all
 const DOCUMENT_TYPES: DocumentType[] = [
   { type: "aadhaar", label: "Aadhaar Card", required: true },
-  { type: "birth", label: "Birth Certificate", required: true },
-  { type: "education", label: "Education Certificate/Degree", required: true },
-  { type: "pan", label: "PAN Card", required: true }, // Made PAN Card mandatory
+  { type: "birth", label: "Birth Certificate", required: false }, // 🔥 Changed to optional
+  { type: "education", label: "Education Certificate/Degree", required: false }, // 🔥 Changed to optional
+  { type: "pan", label: "PAN Card", required: true },
   { type: "driving", label: "Driving License", required: false },
   { type: "passport", label: "Passport", required: false },
 ];
@@ -44,17 +45,15 @@ const DocumentVerificationForm: React.FC<DocumentVerificationFormProps> = ({ reg
     }
   }, [documents, setValue]);
 
-  // Handle checkbox change - Allow proper toggling on/off
+  // Handle checkbox change
   const handleCheckboxChange = (docType: string, checked: boolean) => {
     const updatedDocuments = documents.map((doc) => (doc.type === docType ? { ...doc, isSelected: checked } : doc));
 
     setDocuments(updatedDocuments);
 
     if (setValue) {
-      // Update the documents array
       setValue("documentVerification.documents", updatedDocuments);
-      // Trigger validation for the required document check
-      setValue("documentVerification.hasRequiredDocument", hasRequiredDocument());
+      setValue("documentVerification.hasRequiredDocument", hasAtLeastOneDocument());
     }
   };
 
@@ -63,15 +62,15 @@ const DocumentVerificationForm: React.FC<DocumentVerificationFormProps> = ({ reg
     return documents.find((doc) => doc.type === docType);
   };
 
-  // Check if at least one required document is selected
-  const hasRequiredDocument = () => {
-    return documents.some((doc) => doc.isSelected && DOCUMENT_TYPES.find((dt) => dt.type === doc.type)?.required);
+  // 🔥 UPDATED: Check if at least one document is selected (not necessarily required ones)
+  const hasAtLeastOneDocument = () => {
+    return documents.some((doc) => doc.isSelected);
   };
 
-  // Check if all mandatory documents are selected
-  const hasMandatoryDocuments = () => {
-    const mandatoryDocTypes = DOCUMENT_TYPES.filter((dt) => dt.required).map((dt) => dt.type);
-    return mandatoryDocTypes.every((docType) => documents.find((doc) => doc.type === docType)?.isSelected);
+  // 🔥 UPDATED: Check if at least one required document is selected
+  const hasAtLeastOneRequiredDocument = () => {
+    const requiredDocTypes = DOCUMENT_TYPES.filter((dt) => dt.required).map((dt) => dt.type);
+    return requiredDocTypes.some((docType) => documents.find((doc) => doc.type === docType)?.isSelected);
   };
 
   // Custom checkbox style
@@ -149,12 +148,14 @@ const DocumentVerificationForm: React.FC<DocumentVerificationFormProps> = ({ reg
               mb: 1,
             }}
           >
-            Which Of The Following Documents Have Been Verified During The Guard's Recruitment? (Select All That Apply)
+            {/* 🔥 UPDATED: New instruction text */}
+            Which Of The Following Documents Have Been Verified During The Guard's Recruitment? (Select At Least One
+            Document)
           </Typography>
           <Divider />
         </Box>
 
-        {/* Document Checkboxes - No file upload */}
+        {/* Document Checkboxes */}
         <Box sx={{ mt: 3, display: "flex", flexDirection: "column", gap: 3 }}>
           {DOCUMENT_TYPES.map((docType) => {
             const document = getDocumentByType(docType.type);
@@ -181,29 +182,14 @@ const DocumentVerificationForm: React.FC<DocumentVerificationFormProps> = ({ reg
                   sx={{ margin: 0, alignItems: "flex-start" }}
                 />
 
-                {/* Verification status indicator */}
-                {document?.isSelected && (
-                  <Box sx={{ ml: 3, display: "flex", alignItems: "center", gap: 1 }}>
-                    <Box
-                      sx={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: "50%",
-                        backgroundColor: "#4CAF50",
-                      }}
-                    />
-                    <Typography sx={{ fontSize: "11px", color: "#4CAF50", fontFamily: "Mukta" }}>
-                      Marked as verified - {docType.label}
-                    </Typography>
-                  </Box>
-                )}
+                {/* 🔥 REMOVED: Green verification status indicator - No more green text */}
               </Box>
             );
           })}
         </Box>
 
-        {/* Validation Error for missing mandatory documents */}
-        {!hasMandatoryDocuments() && (
+        {/* 🔥 UPDATED: Validation Error Messages */}
+        {!hasAtLeastOneDocument() && (
           <FormHelperText
             error
             sx={{
@@ -213,36 +199,48 @@ const DocumentVerificationForm: React.FC<DocumentVerificationFormProps> = ({ reg
               ml: 1,
             }}
           >
-            Please select all mandatory documents (marked with *)
+            Please select at least one document to proceed
           </FormHelperText>
         )}
 
-        {/* Validation Error for at least one document */}
-        {!hasRequiredDocument() && (
+        {/* Show warning if no mandatory documents are selected but other documents are */}
+        {hasAtLeastOneDocument() && !hasAtLeastOneRequiredDocument() && (
           <FormHelperText
-            error
             sx={{
               fontFamily: "Mukta",
               fontSize: "12px",
               mt: 1,
               ml: 1,
+              color: "#FF9800", // Orange color for warning
             }}
           >
-            Please select at least one mandatory document (marked with *)
+            Warning: Please select at least one mandatory document (marked with *) for proper verification.
+          </FormHelperText>
+        )}
+
+        {/* Success message when at least one mandatory document is selected */}
+        {hasAtLeastOneDocument() && hasAtLeastOneRequiredDocument() && (
+          <FormHelperText
+            sx={{
+              fontFamily: "Mukta",
+              fontSize: "12px",
+              mt: 1,
+              ml: 1,
+              color: "#4CAF50", // Green for success but subtle
+            }}
+          >
+            ✓ Document selection complete
           </FormHelperText>
         )}
       </Box>
 
-      {/* Hidden input for form validation */}
+      {/* 🔥 UPDATED: Hidden input for form validation - now only requires at least one document */}
       <input
         type="hidden"
         {...register("documentVerification.hasRequiredDocument", {
           validate: () => {
-            if (!hasRequiredDocument()) {
-              return "Please select at least one mandatory document (marked with *)";
-            }
-            if (!hasMandatoryDocuments()) {
-              return "Please select all mandatory documents (marked with *)";
+            if (!hasAtLeastOneDocument()) {
+              return "Please select at least one document to proceed";
             }
             return true;
           },

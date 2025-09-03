@@ -4,7 +4,7 @@ import CalendarViewWeekOutlinedIcon from "@mui/icons-material/CalendarViewWeekOu
 import EventOutlinedIcon from "@mui/icons-material/EventOutlined";
 import HomeWorkOutlinedIcon from "@mui/icons-material/HomeWorkOutlined";
 import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { Avatar, Button, Collapse, MenuItem, Select } from "@mui/material";
+import { Avatar, Button, Collapse, Menu, MenuItem, Select } from "@mui/material";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import List from "@mui/material/List";
@@ -27,12 +27,23 @@ const drawerWidth = 240;
 
 export default function ClientSidebar({ children }: { children: React.ReactNode }) {
   const [statsOpen, setStatsOpen] = useState(true);
+  const [dayMenuAnchor, setDayMenuAnchor] = useState<null | HTMLElement>(null);
+  const [weekMenuAnchor, setWeekMenuAnchor] = useState<null | HTMLElement>(null);
+  const [monthMenuAnchor, setMonthMenuAnchor] = useState<null | HTMLElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { clientId } = useParams();
 
-  const { selectedView, setSelectedView, selectedSite, setSelectedSite, currentDate, clientDetails, isLoadingClient } =
-    useClientContext();
+  const {
+    selectedView,
+    setSelectedView,
+    selectedSite,
+    setSelectedSite,
+    currentDate,
+    setCurrentDate,
+    clientDetails,
+    isLoadingClient,
+  } = useClientContext();
 
   const { data: sitesResponse, isLoading: isLoadingSites } = useGetClientSites(clientId || "");
   const sites = sitesResponse?.data || [];
@@ -98,6 +109,64 @@ export default function ClientSidebar({ children }: { children: React.ReactNode 
 
   const handleSiteChange = (event: any) => {
     setSelectedSite(event.target.value);
+  };
+
+  const handleDateSelect = (date: Date) => {
+    setCurrentDate(date);
+    setDayMenuAnchor(null);
+    setWeekMenuAnchor(null);
+    setMonthMenuAnchor(null);
+  };
+
+  const generateDateOptions = (type: "day" | "week" | "month") => {
+    const options = [];
+    const today = new Date();
+
+    if (type === "day") {
+      const todayFormatted = formatDate(today);
+      options.push({
+        date: new Date(today),
+        label: `${todayFormatted.dayName} ${todayFormatted.day}/${todayFormatted.month}/${todayFormatted.year}`,
+      });
+      for (let i = 1; i <= 10; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const formatted = formatDate(date);
+        options.push({
+          date,
+          label: `${formatted.dayName} ${formatted.day}/${formatted.month}/${formatted.year}`,
+        });
+      }
+    } else if (type === "week") {
+      options.push({
+        date: new Date(today),
+        label: getWeekRange(today),
+      });
+      for (let i = 1; i <= 12; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i * 7);
+        options.push({
+          date,
+          label: getWeekRange(date),
+        });
+      }
+    } else if (type === "month") {
+      const currentFormatted = formatDate(today);
+      options.push({
+        date: new Date(today),
+        label: `${currentFormatted.monthName} ${currentFormatted.year}`,
+      });
+      for (let i = 1; i <= 12; i++) {
+        const date = new Date(today);
+        date.setMonth(today.getMonth() - i);
+        const formatted = formatDate(date);
+        options.push({
+          date,
+          label: `${formatted.monthName} ${formatted.year}`,
+        });
+      }
+    }
+    return options;
   };
 
   const currentFormatted = formatDate(currentDate);
@@ -276,38 +345,67 @@ export default function ClientSidebar({ children }: { children: React.ReactNode 
               </Select>
               <KeyboardArrowDownIcon sx={{ ml: 1 }} />
             </Button>
-
             <div className="flex flex-row gap-4">
               <Button
                 variant="outlined"
                 size="small"
                 sx={getButtonStyles(selectedView === "day")}
-                onClick={() => handleViewChange("day")}
+                onClick={(event) => {
+                  handleViewChange("day");
+                  setDayMenuAnchor(event.currentTarget);
+                }}
+                endIcon={<KeyboardArrowDownIcon />}
               >
                 <EventOutlinedIcon sx={{ mr: 1 }} />
                 {selectedView === "day" ? `DAY | ${todayString}` : "DAY"}
               </Button>
-
+              <Menu anchorEl={dayMenuAnchor} open={Boolean(dayMenuAnchor)} onClose={() => setDayMenuAnchor(null)}>
+                {generateDateOptions("day").map((option, index) => (
+                  <MenuItem key={index} onClick={() => handleDateSelect(option.date)}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Button
                 variant="outlined"
                 size="small"
                 sx={getButtonStyles(selectedView === "week")}
-                onClick={() => handleViewChange("week")}
+                onClick={(event) => {
+                  handleViewChange("week");
+                  setWeekMenuAnchor(event.currentTarget);
+                }}
+                endIcon={<KeyboardArrowDownIcon />}
               >
                 <CalendarViewWeekOutlinedIcon sx={{ mr: 1 }} />
                 {selectedView === "week" ? `WEEK | ${weekString}` : "WEEK"}
               </Button>
-
+              <Menu anchorEl={weekMenuAnchor} open={Boolean(weekMenuAnchor)} onClose={() => setWeekMenuAnchor(null)}>
+                {generateDateOptions("week").map((option, index) => (
+                  <MenuItem key={index} onClick={() => handleDateSelect(option.date)}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Button
                 variant="outlined"
                 size="small"
                 sx={getButtonStyles(selectedView === "month")}
-                onClick={() => handleViewChange("month")}
+                onClick={(event) => {
+                  handleViewChange("month");
+                  setMonthMenuAnchor(event.currentTarget);
+                }}
+                endIcon={<KeyboardArrowDownIcon />}
               >
                 <CalendarViewMonthOutlinedIcon sx={{ mr: 1 }} />
                 {selectedView === "month" ? `MONTH | ${monthString}` : "MONTH"}
               </Button>
-
+              <Menu anchorEl={monthMenuAnchor} open={Boolean(monthMenuAnchor)} onClose={() => setMonthMenuAnchor(null)}>
+                {generateDateOptions("month").map((option, index) => (
+                  <MenuItem key={index} onClick={() => handleDateSelect(option.date)}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </Menu>
               <Button
                 variant="outlined"
                 size="small"
